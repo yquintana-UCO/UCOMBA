@@ -1,0 +1,111 @@
+customer_id,company_name,industry,company_size,employees,plan,contract_type,mrr,start_date,churn_date,status,csm_assigned,csm_name,product_usage_score,support_tickets_90d,last_login_days_ago,nps_score,churn_reason,months_as_customer,renewal_quarter
+HX-2001,Briartree Brewing,Manufacturing,Mid-Market,419,Growth,Monthly,427,2024-01-28,,Active,Yes,Jordan Reyes,92,7,4,69,,14,Q1-2025
+HX-2002,Foundry Robotics,Logistics,Enterprise,2706,Business,Annual,1960,2023-12-13,,At-Risk,No,,43,7,30,5,,15,Q4-2024
+HX-2003,Glide Logistics,Professional Services,SMB,48,Starter,Annual,139,2024-09-12,,At-Risk,Yes,Chris Nguyen,51,2,38,13,,6,Q3-2025
+HX-2004,Harvest Mutual Bank,Nonprofit,SMB,35,Starter,Monthly,109,2024-03-11,2024-09-25,Churned,Yes,Maya Torres,19,17,96,-40,Competitor,6,Q1-2025
+HX-2005,Lumen Architecture,Nonprofit,SMB,36,Starter,Monthly,103,2023-05-15,,Active,Yes,Maya Torres,93,2,10,77,,22,Q2-2024
+HX-2006,Northwind Outdoor Co,Healthcare,SMB,14,Starter,Annual,232,2023-11-23,,Active,Yes,Sam Patel,62,5,3,37,,16,Q4-2024
+HX-2007,Polaris Med Devices,Technology,Mid-Market,444,Growth,Monthly,720,2024-02-13,,Active,Yes,Avery Kim,71,0,6,41,,13,Q1-2025
+HX-2008,Quill Public Schools,Retail,SMB,14,Starter,Monthly,273,2023-11-18,2024-07-29,Churned,No,,25,7,62,-12,Missing Feature,8,Q4-2024
+HX-2009,Riverstone Realty,Nonprofit,Enterprise,2119,Business,Annual,1637,2024-11-05,,Active,Yes,Avery Kim,58,7,4,73,,4,Q4-2025
+HX-2010,Sable Energy Co-op,Logistics,SMB,35,Starter,Monthly,259,2023-06-25,2024-09-15,Churned,No,,26,12,114,7,Lack of Use,14,Q2-2024
+HX-2011,Tinder Press,Professional Services,Mid-Market,321,Growth,Multi-Year,384,2024-06-07,,Active,No,,76,6,8,46,,9,Q2-2025
+HX-2012,Umbra Game Studios,Retail,Enterprise,3733,Enterprise,Monthly,2976,2024-03-02,,Active,No,,45,4,4,45,,13,Q1-2025
+HX-2013,Verdant Foods Group,Manufacturing,Enterprise,2741,Enterprise,Annual,9886,2024-04-02,,Active,Yes,Sam Patel,92,2,6,56,,12,Q2-2025
+HX-2014,Westline Insurance,Hospitality,Mid-Market,457,Business,Annual,2080,2024-05-02,,Active,No,,52,0,2,29,,11,Q2-2025
+HX-2015,Yarrow Apparel,Healthcare,SMB,31,Starter,Multi-Year,194,2023-09-25,,Active,Yes,Avery Kim,85,0,1,55,,18,Q3-2024
+HX-2016,Zenith Aerospace,Professional Services,Enterprise,2123,Enterprise,Monthly,5920,2023-08-24,,Active,No,,55,4,11,47,,19,Q3-2024
+HX-2017,Beacon Childcare Network,Professional Services,SMB,32,Starter,Multi-Year,274,2023-05-09,,Active,No,,57,6,3,32,,23,Q2-2024
+HX-2018,Cobalt Cloud Services,Media,Mid-Market,242,Growth,Monthly,713,2024-10-02,2025-01-03,Churned,No,,29,9,31,-33,Business Closure,3,Q4-2025
+HX-2019,Drift Hospitality Group,Retail,Mid-Market,464,Growth,Monthly,490,2023-09-17,2024-01-06,Churned,No,,12,14,31,-39,Competitor,3,Q3-2024
+HX-2020,Echo Sound Labs,Education,SMB,24,Starter,Monthly,263,2023-11-21,2024-06-30,Churned,Yes,Chris Nguyen,90,6,108,13,Lack of Use,7,Q4-2024
+HX-2021,Field & Meadow Coop,Utilities,Mid-Market,98,Business,Annual,1155,2024-06-20,,Active,Yes,Sam Patel,51,4,3,41,,9,Q2-2025
+HX-2022,Granite Pacific Bank,Technology,Mid-Market,307,Growth,Monthly,391,2024-10-06,2024-11-24,Churned,No,,26,18,112,8,Price,1,Q4-2025
+HX-2023,Hollow Pines Resorts,Hospitality,SMB,16,Starter,Annual,112,2024-01-14,,Active,Yes,Chris Nguyen,62,3,12,61,,14,Q1-2025
+HX-2024,Ivory Lane Cosmetics,Finance,SMB,36,Starter,Multi-Year,261,2024-05-31,,Active,Yes,Chris Nguyen,82,3,11,45,,10,Q2-2025
+HX-2025,Jasper Civil Engineers,Professional Services,SMB,28,Starter,Annual,113,2024-10-04,,At-Risk,Yes,Sam Patel,12,11,13,20,,5,Q4-2025
+HX-2026,Kettlebell Health,Nonprofit,SMB,11,Starter,Multi-Year,177,2024-02-03,,Active,Yes,Sam Patel,67,7,1,42,,14,Q1-2025
+HX-2027,Longbow Analytics,Finance,Mid-Market,181,Business,Annual,1567,2023-09-08,2024-01-24,Churned,No,,97,10,73,-39,Competitor,4,Q3-2024
+HX-2028,Marble Stone Group,Nonprofit,SMB,32,Starter,Monthly,275,2024-01-14,2025-01-08,Churned,No,,45,22,71,9,Lack of Use,12,Q1-2025
+HX-2029,Nightfall Security,Education,Mid-Market,317,Growth,Monthly,351,2023-10-05,,Active,Yes,Chris Nguyen,87,7,11,43,,18,Q4-2024
+HX-2030,Orbit Data Labs,Media,Enterprise,4879,Enterprise,Monthly,4811,2024-05-21,,Active,No,,93,5,9,80,,10,Q2-2025
+HX-2031,Persimmon Brands,Healthcare,Enterprise,1562,Business,Monthly,1371,2024-04-09,,Active,No,,69,0,1,35,,11,Q2-2025
+HX-2032,Quarry Ridge Partners,Manufacturing,SMB,28,Starter,Monthly,144,2023-07-28,2024-03-01,Churned,No,,16,14,118,-13,Competitor,7,Q3-2024
+HX-2033,Redline Automotive,Healthcare,SMB,12,Starter,Annual,108,2023-10-03,2024-11-21,Churned,No,,67,10,45,6,Lack of Use,13,Q4-2024
+HX-2034,Solstice Wellness,Education,Mid-Market,218,Growth,Annual,455,2024-04-03,,Active,Yes,Chris Nguyen,64,4,3,59,,12,Q2-2025
+HX-2035,Tidemark Capital,Finance,Enterprise,3987,Enterprise,Annual,7051,2024-03-21,2025-02-11,Churned,Yes,Sam Patel,84,17,31,6,Price,10,Q1-2025
+HX-2036,Union Pacific Freight,Hospitality,SMB,17,Starter,Monthly,165,2023-07-16,2024-02-25,Churned,No,,26,22,108,-29,Price,7,Q3-2024
+HX-2037,Valiant Properties,Retail,SMB,24,Starter,Annual,153,2024-05-06,2024-11-18,Churned,No,,32,6,116,-32,Business Closure,6,Q2-2025
+HX-2038,Watershed Environmental,Nonprofit,Mid-Market,84,Business,Monthly,1940,2023-06-30,2024-01-02,Churned,No,,82,16,85,-39,Competitor,6,Q2-2024
+HX-2039,Xenon Photonics,Logistics,Enterprise,1938,Enterprise,Monthly,8176,2024-12-06,2025-01-18,Churned,No,,45,15,111,2,Competitor,1,Q4-2025
+HX-2040,Yardbird Restaurants,Nonprofit,SMB,14,Starter,Annual,240,2024-10-18,,Active,Yes,Avery Kim,72,5,3,43,,5,Q4-2025
+HX-2041,Zephyr Wind Energy,Technology,Mid-Market,330,Business,Annual,1364,2024-02-22,,Active,Yes,Avery Kim,56,4,12,38,,13,Q1-2025
+HX-2042,Ashwood Medical,Professional Services,SMB,40,Starter,Annual,156,2023-11-07,2023-12-22,Churned,No,,34,16,59,21,Missing Feature,1,Q4-2024
+HX-2043,Blue Crane Ventures,Hospitality,Enterprise,2270,Business,Monthly,1526,2024-07-28,,Active,Yes,Jordan Reyes,89,0,2,52,,8,Q3-2025
+HX-2044,Copper Canyon Mining,Utilities,Enterprise,1528,Enterprise,Monthly,8741,2024-04-14,2024-09-03,Churned,No,,93,6,111,6,Competitor,4,Q2-2025
+HX-2045,Dawnbreak Studios,Professional Services,Mid-Market,228,Growth,Annual,650,2023-09-13,,Active,Yes,Jordan Reyes,71,2,5,61,,18,Q3-2024
+HX-2046,Ember Creek Brewery,Utilities,Enterprise,3878,Enterprise,Annual,7957,2024-02-29,,Active,No,,64,7,2,46,,13,Q1-2025
+HX-2047,Fernwood Education,Utilities,Enterprise,3136,Enterprise,Monthly,8809,2023-02-01,2023-08-13,Churned,No,,62,5,58,3,Business Closure,6,Q1-2024
+HX-2048,Glacier Point Finance,Manufacturing,Mid-Market,217,Growth,Annual,302,2023-06-09,,Active,No,,77,5,12,60,,22,Q2-2024
+HX-2049,Harbor Light Consulting,Utilities,Mid-Market,410,Business,Annual,2423,2024-12-05,,Active,Yes,Jordan Reyes,69,5,6,64,,3,Q4-2025
+HX-2050,Ironbark Manufacturing,Healthcare,SMB,40,Starter,Monthly,271,2024-02-22,2024-04-20,Churned,No,,24,6,110,-29,Price,1,Q1-2025
+HX-2051,Juniper Lane Retail,Utilities,Enterprise,1881,Enterprise,Annual,7843,2024-07-23,,Active,Yes,Sam Patel,75,6,6,71,,8,Q3-2025
+HX-2052,Keystone Healthcare,Media,Enterprise,4300,Enterprise,Multi-Year,6459,2024-03-30,,Active,No,,77,4,9,61,,12,Q1-2025
+HX-2053,Limestone Tech,Healthcare,Mid-Market,330,Business,Monthly,1579,2024-03-22,,Active,Yes,Jordan Reyes,68,3,3,76,,12,Q1-2025
+HX-2054,Mosaic Digital Agency,Professional Services,Enterprise,2144,Business,Monthly,1185,2023-05-18,,Active,No,,97,5,12,31,,22,Q2-2024
+HX-2055,Nightjar Music,Technology,SMB,38,Starter,Annual,136,2024-04-17,2024-09-18,Churned,No,,32,15,32,-18,Lack of Use,5,Q2-2025
+HX-2056,Oaktree Legal Services,Media,Enterprise,4549,Enterprise,Annual,9362,2024-01-13,,Active,No,,93,4,11,51,,14,Q1-2025
+HX-2057,Pendulum Analytics,Technology,Mid-Market,233,Business,Annual,1668,2024-12-29,,Active,Yes,Jordan Reyes,71,0,3,75,,3,Q4-2025
+HX-2058,Quicksilver Trading,Media,SMB,40,Starter,Multi-Year,156,2024-02-04,,Active,No,,62,1,2,64,,14,Q1-2025
+HX-2059,Ridgeline Construction,Nonprofit,SMB,30,Starter,Annual,151,2023-02-25,2023-09-14,Churned,No,,83,17,73,-5,Price,6,Q1-2024
+HX-2060,Springwell Biotech,Education,Mid-Market,80,Growth,Multi-Year,747,2024-11-17,,At-Risk,No,,13,16,40,19,,4,Q4-2025
+HX-2061,Tideland Marine,Education,Mid-Market,401,Business,Annual,926,2023-09-12,,Active,No,,55,2,1,35,,18,Q3-2024
+HX-2062,Uplift Nonprofits,Logistics,Mid-Market,278,Business,Annual,2389,2023-08-27,,Active,No,,75,4,7,59,,19,Q3-2024
+HX-2063,Vesper Communications,Education,Mid-Market,94,Growth,Annual,404,2023-04-13,2024-02-15,Churned,No,,93,11,31,-38,Missing Feature,10,Q2-2024
+HX-2064,Willowbrook Staffing,Technology,SMB,21,Starter,Monthly,293,2024-01-16,,Active,Yes,Avery Kim,59,0,7,68,,14,Q1-2025
+HX-2065,Crossroads Media,Professional Services,Mid-Market,363,Growth,Monthly,636,2023-11-11,2024-08-30,Churned,No,,88,6,70,-28,Business Closure,9,Q4-2024
+HX-2066,Drumlin Agricultural,Healthcare,SMB,15,Starter,Monthly,294,2023-05-03,2023-08-20,Churned,Yes,Maya Torres,59,18,63,-30,Business Closure,3,Q2-2024
+HX-2067,Eastgate Financial,Retail,Enterprise,4417,Enterprise,Multi-Year,7573,2023-10-05,,Active,No,,64,7,9,38,,18,Q4-2024
+HX-2068,Falcon Robotics,Retail,Enterprise,2884,Business,Monthly,2114,2023-03-13,,At-Risk,No,,25,9,43,33,,25,Q1-2024
+HX-2069,Greenhill Pharma,Technology,SMB,20,Starter,Annual,139,2024-06-05,2024-10-02,Churned,Yes,Chris Nguyen,71,20,89,-31,Business Closure,3,Q2-2025
+HX-2070,Hearthstone Hotels,Nonprofit,SMB,21,Starter,Monthly,240,2023-04-15,2024-02-23,Churned,No,,40,20,88,-32,Lack of Use,10,Q2-2024
+HX-2071,Inkwell Publishing,Technology,Mid-Market,360,Business,Annual,2341,2023-05-11,,Active,Yes,Maya Torres,65,6,9,38,,23,Q2-2024
+HX-2072,Juneau Exploration,Professional Services,Mid-Market,92,Growth,Annual,609,2024-03-20,,Active,Yes,Jordan Reyes,80,7,1,55,,12,Q1-2025
+HX-2073,Kingfisher Aviation,Media,Enterprise,863,Business,Annual,2116,2023-05-03,,Active,Yes,Jordan Reyes,95,3,4,48,,23,Q2-2024
+HX-2074,Larkspur Design,Education,SMB,46,Starter,Multi-Year,239,2023-03-30,,Active,Yes,Sam Patel,59,2,4,74,,24,Q1-2024
+HX-2075,Midland Utilities,Healthcare,SMB,37,Starter,Annual,108,2023-03-12,,Active,Yes,Chris Nguyen,80,5,10,42,,25,Q1-2024
+HX-2076,Nomad Ventures,Utilities,SMB,44,Starter,Monthly,153,2024-01-18,2024-06-05,Churned,Yes,Maya Torres,70,6,96,-8,Missing Feature,4,Q1-2025
+HX-2077,Overture Events,Nonprofit,Enterprise,2337,Business,Monthly,1781,2023-01-19,,Active,Yes,Maya Torres,52,6,3,41,,26,Q1-2024
+HX-2078,Pathfinder Education,Logistics,Mid-Market,324,Business,Annual,2095,2024-05-05,,At-Risk,No,,22,9,10,25,,11,Q2-2025
+HX-2079,Quorum Consulting,Retail,SMB,42,Starter,Annual,248,2024-02-05,,Active,Yes,Avery Kim,91,1,10,31,,14,Q1-2025
+HX-2080,Ridgecrest Energy,Utilities,SMB,27,Starter,Monthly,277,2023-02-16,2024-02-17,Churned,No,,20,17,54,18,Price,12,Q1-2024
+HX-2081,Sandpiper Logistics,Media,Mid-Market,106,Business,Monthly,977,2024-05-25,2024-09-16,Churned,No,,61,20,90,9,Price,3,Q2-2025
+HX-2082,Thornwood Capital,Utilities,Mid-Market,227,Growth,Annual,716,2023-08-20,,Active,Yes,Sam Patel,94,0,5,39,,19,Q3-2024
+HX-2083,Uinta Mining,Retail,Mid-Market,54,Business,Annual,2179,2024-01-14,,Active,Yes,Jordan Reyes,56,2,7,30,,14,Q1-2025
+HX-2084,Vanguard Retail,Professional Services,Mid-Market,230,Business,Monthly,936,2023-12-20,,Active,No,,58,1,1,39,,15,Q4-2024
+HX-2085,Whitehorse Technologies,Technology,SMB,42,Starter,Monthly,151,2024-11-03,2025-01-05,Churned,No,,16,18,68,-1,Price,2,Q4-2025
+HX-2086,Xerxes Maritime,Retail,SMB,17,Starter,Multi-Year,155,2024-03-16,,At-Risk,Yes,Chris Nguyen,41,4,41,22,,12,Q1-2025
+HX-2087,Yellowstone Ranching,Finance,Mid-Market,222,Growth,Annual,410,2024-08-26,,Active,Yes,Chris Nguyen,72,3,8,41,,7,Q3-2025
+HX-2088,Zion Healthcare,Hospitality,Enterprise,2098,Business,Annual,1413,2023-11-08,,Active,Yes,Sam Patel,56,5,10,34,,17,Q4-2024
+HX-2089,Acorn Financial,Finance,SMB,36,Starter,Monthly,274,2023-01-04,2023-08-19,Churned,Yes,Jordan Reyes,37,16,58,5,Business Closure,7,Q1-2024
+HX-2090,Birchwood Media,Nonprofit,SMB,24,Starter,Monthly,108,2024-09-15,,Active,Yes,Jordan Reyes,51,6,3,42,,6,Q3-2025
+HX-2091,Clearwater Solutions,Media,Enterprise,4760,Enterprise,Annual,5839,2023-05-09,,Active,No,,60,7,5,54,,23,Q2-2024
+HX-2092,Driftwood Hospitality,Retail,Enterprise,2631,Enterprise,Monthly,7080,2024-03-04,,Active,No,,64,4,5,48,,13,Q1-2025
+HX-2093,Eagle Ridge Properties,Finance,SMB,35,Starter,Annual,261,2024-08-21,,At-Risk,No,,38,17,21,7,,7,Q3-2025
+HX-2094,Frostline Analytics,Media,Mid-Market,173,Growth,Annual,649,2024-09-13,,Active,Yes,Chris Nguyen,54,3,10,31,,6,Q3-2025
+HX-2095,Gander Bay Fisheries,Utilities,Enterprise,2019,Business,Monthly,1216,2024-07-21,2024-12-27,Churned,Yes,Sam Patel,88,22,74,-5,Competitor,5,Q3-2025
+HX-2096,Haven Healthcare,Technology,Mid-Market,94,Business,Monthly,2101,2023-10-28,,Active,Yes,Avery Kim,88,6,5,48,,17,Q4-2024
+HX-2097,Indigo Blue Design,Nonprofit,SMB,34,Starter,Annual,179,2023-05-23,2023-12-28,Churned,No,,37,17,90,-36,Missing Feature,7,Q2-2024
+HX-2098,Juneau Pacific Ventures,Media,Enterprise,1460,Business,Annual,1045,2024-08-20,,Active,Yes,Jordan Reyes,57,2,8,48,,7,Q3-2025
+HX-2099,Kessler Pharma,Technology,Mid-Market,325,Business,Monthly,1986,2023-01-07,,At-Risk,No,,34,15,34,38,,27,Q1-2024
+HX-2100,Lodestar Research,Hospitality,Enterprise,762,Enterprise,Monthly,7988,2023-03-03,,At-Risk,No,,48,1,13,2,,25,Q1-2024
+HX-2101,Meadow Creek Foods,Manufacturing,Mid-Market,413,Business,Multi-Year,2112,2023-12-31,,Active,No,,95,1,9,67,,15,Q4-2024
+HX-2102,Northgate Logistics,Technology,SMB,13,Starter,Multi-Year,90,2024-04-02,,Active,No,,91,1,2,59,,12,Q2-2025
+HX-2103,Offshore Wind Partners,Finance,Enterprise,1441,Enterprise,Monthly,5362,2023-11-30,2025-02-02,Churned,No,,29,17,37,4,Price,14,Q4-2024
+HX-2104,Piedmont Biotech,Professional Services,Mid-Market,151,Growth,Monthly,387,2024-01-19,,At-Risk,Yes,Avery Kim,18,13,22,24,,14,Q1-2025
+HX-2105,Quartersawn Timber,Hospitality,Enterprise,1439,Business,Annual,2245,2023-11-29,,At-Risk,Yes,Avery Kim,45,6,35,11,,16,Q4-2024
+HX-2106,Ridgeway Insurance,Finance,SMB,42,Starter,Monthly,116,2023-10-25,2024-08-09,Churned,Yes,Jordan Reyes,25,20,32,-2,Missing Feature,9,Q4-2024
+HX-2107,Stonewall Security,Education,SMB,39,Starter,Multi-Year,170,2023-01-09,,Active,Yes,Chris Nguyen,97,6,4,46,,27,Q1-2024
+HX-2108,Tidewater Marine,Nonprofit,Enterprise,1597,Business,Multi-Year,1792,2023-12-21,,Active,No,,75,3,12,56,,15,Q4-2024
+HX-2109,Upland Agricultural,Technology,Mid-Market,484,Business,Monthly,2162,2023-09-26,2024-05-16,Churned,No,,96,12,40,12,Competitor,7,Q3-2024
+HX-2110,Vineyard Creek Winery,Professional Services,Mid-Market,107,Growth,Multi-Year,717,2024-03-26,,At-Risk,No,,52,5,32,13,,12,Q1-2025
