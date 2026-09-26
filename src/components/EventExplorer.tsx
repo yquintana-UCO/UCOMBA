@@ -13,10 +13,23 @@ import {
 // Leaflet touches `window`, so the map only renders in the browser.
 const EventMap = dynamic(() => import("./EventMap"), {
   ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse rounded-2xl bg-thunder-blue/10" />,
+  loading: () => (
+    <div className="h-full w-full animate-pulse rounded-2xl bg-thunder-blue/10" />
+  ),
 });
 
-export default function EventExplorer({ events, today }: { events: OkcEvent[]; today: string }) {
+export default function EventExplorer({
+  events,
+  today,
+  picks = [],
+  onClearPicks,
+}: {
+  events: OkcEvent[];
+  today: string;
+  /** Event ids the AI guide recommended, best first. Non-empty = show only these. */
+  picks?: string[];
+  onClearPicks?: () => void;
+}) {
   const [category, setCategory] = useState<EventCategory | "all">("all");
   const [heritageOnly, setHeritageOnly] = useState(false);
   const [freeOnly, setFreeOnly] = useState(false);
@@ -25,33 +38,57 @@ export default function EventExplorer({ events, today }: { events: OkcEvent[]; t
     () => Array.from(new Set(events.map((e) => e.category))),
     [events],
   );
-  const visible = events.filter(
-    (e) =>
-      (category === "all" || e.category === category) &&
-      (!heritageOnly || e.tags.includes(HERITAGE_TAG)) &&
-      (!freeOnly || e.is_free),
-  );
+  const byId = new Map(events.map((e) => [e.id, e]));
+  const guided = picks.length > 0;
+  const visible = guided
+    ? picks.flatMap((id) => byId.get(id) ?? [])
+    : events.filter(
+        (e) =>
+          (category === "all" || e.category === category) &&
+          (!heritageOnly || e.tags.includes(HERITAGE_TAG)) &&
+          (!freeOnly || e.is_free),
+      );
 
   return (
-    <section id="events" className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <Chip active={category === "all"} onClick={() => setCategory("all")}>
-          All
-        </Chip>
-        {categories.map((c) => (
-          <Chip key={c} active={category === c} onClick={() => setCategory(c)}>
-            {CATEGORY_LABELS[c]}
-          </Chip>
-        ))}
-        <div className="ml-auto flex flex-wrap gap-4 text-sm">
-          <Toggle checked={heritageOnly} onChange={setHeritageOnly}>
-            Hispanic Heritage
-          </Toggle>
-          <Toggle checked={freeOnly} onChange={setFreeOnly}>
-            Free only
-          </Toggle>
+    <section id="events" className="scroll-mt-4 space-y-6">
+      {guided ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-thunder-orange px-4 py-3 font-semibold text-white shadow">
+          <span>
+            ✨ The guide picked {visible.length} event
+            {visible.length === 1 ? "" : "s"} for you — see them on the map
+          </span>
+          <button
+            type="button"
+            onClick={onClearPicks}
+            className="ml-auto rounded-full bg-white px-3 py-1 text-sm text-thunder-orange hover:bg-white/90"
+          >
+            Show all events
+          </button>
         </div>
-      </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <Chip active={category === "all"} onClick={() => setCategory("all")}>
+            All
+          </Chip>
+          {categories.map((c) => (
+            <Chip
+              key={c}
+              active={category === c}
+              onClick={() => setCategory(c)}
+            >
+              {CATEGORY_LABELS[c]}
+            </Chip>
+          ))}
+          <div className="ml-auto flex flex-wrap gap-4 text-sm">
+            <Toggle checked={heritageOnly} onChange={setHeritageOnly}>
+              Hispanic Heritage
+            </Toggle>
+            <Toggle checked={freeOnly} onChange={setFreeOnly}>
+              Free only
+            </Toggle>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
         <ul className="space-y-3 lg:max-h-[640px] lg:overflow-y-auto lg:pr-2">
@@ -61,7 +98,12 @@ export default function EventExplorer({ events, today }: { events: OkcEvent[]; t
             </li>
           )}
           {visible.map((e) => (
-            <EventCard key={e.id} event={e} live={isHappeningNow(e, today)} />
+            <EventCard
+              key={e.id}
+              event={e}
+              live={isHappeningNow(e, today)}
+              rank={guided ? picks.indexOf(e.id) + 1 : undefined}
+            />
           ))}
         </ul>
         <div className="order-first h-[320px] sm:h-[420px] lg:order-none lg:sticky lg:top-4 lg:h-[640px]">
@@ -72,7 +114,15 @@ export default function EventExplorer({ events, today }: { events: OkcEvent[]; t
   );
 }
 
-function EventCard({ event: e, live }: { event: OkcEvent; live: boolean }) {
+function EventCard({
+  event: e,
+  live,
+  rank,
+}: {
+  event: OkcEvent;
+  live: boolean;
+  rank?: number;
+}) {
   const sports = e.category === "sports";
   const heritage = e.tags.includes(HERITAGE_TAG);
   const price = e.price_text ?? (e.is_free ? "Free" : null);
@@ -84,11 +134,18 @@ function EventCard({ event: e, live }: { event: OkcEvent; live: boolean }) {
       }`}
     >
       <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+        {rank && (
+          <span className="rounded-full bg-thunder-orange px-2 py-0.5 text-white">
+            ✨ Guide&apos;s pick #{rank}
+          </span>
+        )}
         <span className={sports ? "text-thunder-blue" : "text-thunder-orange"}>
           {formatDateRange(e)}
         </span>
         {live && (
-          <span className="rounded-full bg-thunder-orange px-2 py-0.5 text-white">Happening now</span>
+          <span className="rounded-full bg-thunder-orange px-2 py-0.5 text-white">
+            Happening now
+          </span>
         )}
         {heritage && (
           <span className="rounded-full bg-thunder-blue/10 px-2 py-0.5 text-thunder-blue dark:text-sky-300">
@@ -108,7 +165,9 @@ function EventCard({ event: e, live }: { event: OkcEvent; live: boolean }) {
       </div>
       <h3 className="mt-1 text-lg font-bold leading-snug">{e.title}</h3>
       <p className="text-sm text-muted">
-        {[e.hours_text, [e.venue, e.city].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}
+        {[e.hours_text, [e.venue, e.city].filter(Boolean).join(", ")]
+          .filter(Boolean)
+          .join(" · ")}
       </p>
       {e.description && <p className="mt-2 text-sm">{e.description}</p>}
       {e.url && (

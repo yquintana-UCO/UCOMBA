@@ -1,5 +1,4 @@
-import AskGuide from "@/components/AskGuide";
-import EventExplorer from "@/components/EventExplorer";
+import FiestaApp from "@/components/FiestaApp";
 import PapelPicado from "@/components/PapelPicado";
 import { todayInOkc } from "@/lib/dates";
 import { getUpcomingEvents } from "@/lib/events";
@@ -33,8 +32,7 @@ export default async function Home() {
         </div>
       </header>
 
-      <AskGuide />
-      <EventExplorer events={events} today={todayInOkc()} />
+      <FiestaApp events={events} today={todayInOkc()} />
     </main>
   );
 }

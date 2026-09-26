@@ -9,7 +9,11 @@ const SUGGESTIONS = [
   "Plan me a Norman day trip",
 ];
 
-export default function AskGuide() {
+export default function AskGuide({
+  onPicks,
+}: {
+  onPicks: (ids: string[]) => void;
+}) {
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -19,6 +23,7 @@ export default function AskGuide() {
     setQuestion(q);
     setLoading(true);
     setAnswer(null);
+    onPicks([]);
     try {
       const res = await fetch("/api/ask", {
         method: "POST",
@@ -27,6 +32,7 @@ export default function AskGuide() {
       });
       const data = await res.json();
       setAnswer(data.answer ?? data.error ?? "Something went wrong.");
+      onPicks(Array.isArray(data.eventIds) ? data.eventIds : []);
     } catch {
       setAnswer("Couldn't reach the guide. Try again in a moment.");
     } finally {
