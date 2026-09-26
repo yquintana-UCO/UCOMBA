@@ -1,7 +1,7 @@
 # Fiesta OKC
 
-Fall and Hispanic Heritage Month events in Oklahoma City and surrounding towns: festivals,
-art exhibits, block parties, and more, shown on a list, on a map, and through an AI guide
+Fall, Hispanic Heritage Month, and Thunder game-day events in Oklahoma City and surrounding
+towns: festivals, art exhibits, pumpkin patches, Thunder home games, and more, shown on a list, on a map, and through an AI guide
 that answers questions in English or Spanish.
 
 **Stack:** Next.js (App Router) · Tailwind CSS · Supabase · Vercel · Leaflet/OpenStreetMap · Anthropic / OpenAI / OpenRouter
@@ -14,19 +14,27 @@ cp .env.example .env.local   # fill in what you have
 npm run dev                  # http://localhost:3000
 ```
 
-Without Supabase keys the app shows built-in **sample** events, so you can build the UI first.
+Without Supabase keys the app shows the curated list in `src/lib/events-data.ts`, so it works before the database is set up.
 
 ## Supabase
 
 1. Create a project at supabase.com.
-2. In the SQL editor, run `supabase/migrations/0001_events.sql`, then optionally `supabase/seed.sql`.
+2. In the SQL editor, run `supabase/migrations/0001_events.sql`, then `supabase/seed.sql`.
 3. Copy the project URL and anon key into `.env.local`.
 
 Row Level Security is on: anyone can read published events; add or edit events from the
 Supabase dashboard (or a future admin page using the service role).
 
-> The seed rows are **placeholders** at real OKC venues. The events and dates are not
-> confirmed; replace them with verified listings before launch.
+### Updating events
+
+Edit `src/lib/events-data.ts`, then run `npm run seed:generate` to rebuild `supabase/seed.sql`.
+(Or add rows directly in the Supabase table editor.)
+
+Date rules: `start_date` + `end_date` for a date range; only `end_date` for "now through";
+neither for "date TBA". Past events drop off automatically.
+
+> Map pins are approximate. "Directions" links use the street address. Thunder games are a
+> partial list; confirm them at nba.com/thunder/schedule.
 
 ## AI guide (`POST /api/ask`)
 
@@ -58,9 +66,12 @@ curl -X POST localhost:3000/api/ask -H 'Content-Type: application/json' \
 ```
 src/app/page.tsx              Home: hero, AI guide, filters, list and map
 src/app/api/ask/route.ts      AI guide endpoint
-src/components/               EventExplorer, EventMap (Leaflet), AskGuide
+src/components/               EventExplorer, EventMap (Leaflet), AskGuide, PapelPicado
 src/lib/ai/provider.ts        Anthropic / OpenAI / OpenRouter switch
-src/lib/events.ts             Supabase query (falls back to sample data)
+src/lib/events.ts             Supabase query (falls back to events-data.ts)
+src/lib/events-data.ts        Curated event list (source for seed.sql)
+src/lib/dates.ts              Date ranges, "happening now", sorting
 src/lib/supabase/server.ts    Supabase server client
-supabase/                     SQL migration + placeholder seed
+supabase/                     SQL migration + generated seed
+scripts/generate-seed.mjs     Builds seed.sql from events-data.ts
 ```

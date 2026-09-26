@@ -4,8 +4,9 @@ import { useState } from "react";
 
 const SUGGESTIONS = [
   "Free family events this weekend?",
-  "¿Dónde puedo bailar salsa?",
-  "Art exhibits for Hispanic Heritage Month",
+  "¿Qué hay para el Día de los Muertos?",
+  "When is the Thunder home opener?",
+  "Plan me a Norman day trip",
 ];
 
 export default function AskGuide() {
@@ -34,9 +35,9 @@ export default function AskGuide() {
   }
 
   return (
-    <section className="rounded-2xl border border-orange-200 bg-gradient-to-br from-amber-50 to-rose-50 p-6 dark:border-stone-700 dark:from-stone-900 dark:to-stone-900">
+    <section className="rounded-2xl border border-line bg-card p-6 shadow-md ring-1 ring-thunder-blue/10">
       <h2 className="text-xl font-bold">Ask the guide ✨</h2>
-      <p className="text-sm text-stone-600 dark:text-stone-300">
+      <p className="text-sm text-muted">
         Tell us what you’re in the mood for — English or Español.
       </p>
       <form
@@ -50,12 +51,12 @@ export default function AskGuide() {
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="e.g. Something fun and free on Saturday night"
-          className="flex-1 rounded-lg border border-orange-300 bg-white px-3 py-2 dark:border-stone-600 dark:bg-stone-800"
+          className="min-w-0 flex-1 rounded-lg border border-line bg-background px-3 py-2 outline-none focus:border-thunder-blue"
           maxLength={500}
         />
         <button
           disabled={loading}
-          className="rounded-lg bg-orange-600 px-4 py-2 font-medium text-white disabled:opacity-60"
+          className="rounded-lg bg-thunder-orange px-5 py-2 font-semibold text-white shadow hover:brightness-110 disabled:opacity-60"
         >
           {loading ? "Thinking…" : "Ask"}
         </button>
@@ -66,14 +67,14 @@ export default function AskGuide() {
             key={s}
             type="button"
             onClick={() => ask(s)}
-            className="rounded-full bg-white/70 px-3 py-1 text-xs hover:bg-white dark:bg-stone-800"
+            className="rounded-full border border-line px-3 py-1 text-xs hover:border-thunder-blue hover:text-thunder-blue"
           >
             {s}
           </button>
         ))}
       </div>
       {answer && (
-        <p className="mt-4 whitespace-pre-wrap rounded-lg bg-white/80 p-4 text-sm dark:bg-stone-800">
+        <p className="mt-4 whitespace-pre-wrap rounded-lg border-l-4 border-thunder-blue bg-thunder-blue/5 p-4 text-sm">
           {answer}
         </p>
       )}

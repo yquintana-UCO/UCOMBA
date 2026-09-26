@@ -27,15 +27,25 @@ export default function EventMap({ events }: { events: OkcEvent[] }) {
           key={e.id}
           center={[e.lat!, e.lng!]}
           radius={9}
-          pathOptions={{ color: "#9a3412", fillColor: "#f97316", fillOpacity: 0.85 }}
+          pathOptions={
+            e.category === "sports"
+              ? { color: "#002d62", fillColor: "#007ac1", fillOpacity: 0.9, weight: 2 }
+              : { color: "#ffffff", fillColor: "#ef3b24", fillOpacity: 0.9, weight: 2 }
+          }
         >
           <Popup>
             <strong>{e.title}</strong>
             <br />
-            {e.venue}, {e.city}
+            {[e.venue, e.city].filter(Boolean).join(", ")}
+            {e.hours_text && (
+              <>
+                <br />
+                {e.hours_text}
+              </>
+            )}
             <br />
             <a
-              href={`https://www.google.com/maps/dir/?api=1&destination=${e.lat},${e.lng}`}
+              href={directionsUrl(e)}
               target="_blank"
               rel="noreferrer"
             >
@@ -58,4 +68,10 @@ function FitToPins({ points }: { points: [number, number][] }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, key]);
   return null;
+}
+
+/** Prefer the street address so navigation is exact even where the pin is approximate. */
+function directionsUrl(e: OkcEvent) {
+  const destination = e.address ? `${e.address}, ${e.city}, OK` : `${e.lat},${e.lng}`;
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }

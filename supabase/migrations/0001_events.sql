@@ -1,6 +1,6 @@
 -- Events that power the listing, the map, and the AI guide.
 create type event_category as enum (
-  'festival', 'art', 'music', 'food', 'block_party', 'family', 'dance', 'film', 'market', 'other'
+  'festival', 'art', 'music', 'food', 'block_party', 'family', 'dance', 'film', 'market', 'sports', 'other'
 );
 
 create table public.events (
@@ -8,14 +8,18 @@ create table public.events (
   title        text not null,
   description  text,
   category     event_category not null default 'other',
-  starts_at    timestamptz not null,
-  ends_at      timestamptz,
+  -- Dates are local (America/Chicago) calendar days.
+  -- start_date null + end_date set  => ongoing, "now through <end_date>"
+  -- both null                       => date not announced yet
+  start_date   date,
+  end_date     date,
+  hours_text   text,            -- e.g. "Noon–6 p.m.", "Weekends only"
   venue        text,
   address      text,
   city         text not null default 'Oklahoma City',
   lat          double precision,
   lng          double precision,
-  price_text   text,            -- e.g. "Free", "$10", "$5–$15"
+  price_text   text,            -- e.g. "Free", "$15 per child, $5 per adult"
   is_free      boolean not null default false,
   url          text,
   image_url    text,
@@ -24,7 +28,8 @@ create table public.events (
   created_at   timestamptz not null default now()
 );
 
-create index events_starts_at_idx on public.events (starts_at);
+create index events_start_date_idx on public.events (start_date);
+create index events_end_date_idx on public.events (end_date);
 create index events_category_idx on public.events (category);
 
 -- Public can read published events; writes go through the service role / dashboard.

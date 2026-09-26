@@ -2,25 +2,23 @@
 
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
-import { CATEGORY_LABELS, type EventCategory, type OkcEvent } from "@/lib/types";
+import { formatDateRange, isHappeningNow } from "@/lib/dates";
+import {
+  CATEGORY_LABELS,
+  HERITAGE_TAG,
+  type EventCategory,
+  type OkcEvent,
+} from "@/lib/types";
 
 // Leaflet touches `window`, so the map only renders in the browser.
 const EventMap = dynamic(() => import("./EventMap"), {
   ssr: false,
-  loading: () => <div className="h-full w-full animate-pulse rounded-2xl bg-orange-100" />,
+  loading: () => <div className="h-full w-full animate-pulse rounded-2xl bg-thunder-blue/10" />,
 });
 
-const dateFmt = new Intl.DateTimeFormat("en-US", {
-  weekday: "short",
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "2-digit",
-  timeZone: "America/Chicago",
-});
-
-export default function EventExplorer({ events }: { events: OkcEvent[] }) {
+export default function EventExplorer({ events, today }: { events: OkcEvent[]; today: string }) {
   const [category, setCategory] = useState<EventCategory | "all">("all");
+  const [heritageOnly, setHeritageOnly] = useState(false);
   const [freeOnly, setFreeOnly] = useState(false);
 
   const categories = useMemo(
@@ -28,7 +26,10 @@ export default function EventExplorer({ events }: { events: OkcEvent[] }) {
     [events],
   );
   const visible = events.filter(
-    (e) => (category === "all" || e.category === category) && (!freeOnly || e.is_free),
+    (e) =>
+      (category === "all" || e.category === category) &&
+      (!heritageOnly || e.tags.includes(HERITAGE_TAG)) &&
+      (!freeOnly || e.is_free),
   );
 
   return (
@@ -42,47 +43,85 @@ export default function EventExplorer({ events }: { events: OkcEvent[] }) {
             {CATEGORY_LABELS[c]}
           </Chip>
         ))}
-        <label className="ml-auto flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={freeOnly}
-            onChange={(e) => setFreeOnly(e.target.checked)}
-            className="accent-orange-600"
-          />
-          Free only
-        </label>
+        <div className="ml-auto flex flex-wrap gap-4 text-sm">
+          <Toggle checked={heritageOnly} onChange={setHeritageOnly}>
+            Hispanic Heritage
+          </Toggle>
+          <Toggle checked={freeOnly} onChange={setFreeOnly}>
+            Free only
+          </Toggle>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
-        <ul className="space-y-3 lg:max-h-[520px] lg:overflow-y-auto lg:pr-2">
+        <ul className="space-y-3 lg:max-h-[640px] lg:overflow-y-auto lg:pr-2">
           {visible.length === 0 && (
-            <li className="rounded-xl border border-dashed p-6 text-center text-stone-500">
+            <li className="rounded-xl border border-dashed border-line p-6 text-center text-muted">
               No events match those filters yet.
             </li>
           )}
           {visible.map((e) => (
-            <li
-              key={e.id}
-              className="rounded-xl border border-orange-200 bg-white/80 p-4 shadow-sm dark:border-stone-700 dark:bg-stone-900/80"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="font-semibold">{e.title}</h3>
-                <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-xs text-orange-800 dark:bg-orange-900/40 dark:text-orange-200">
-                  {e.price_text ?? (e.is_free ? "Free" : "")}
-                </span>
-              </div>
-              <p className="mt-1 text-sm text-stone-600 dark:text-stone-300">
-                {dateFmt.format(new Date(e.starts_at))} · {e.venue}, {e.city}
-              </p>
-              {e.description && <p className="mt-2 text-sm">{e.description}</p>}
-            </li>
+            <EventCard key={e.id} event={e} live={isHappeningNow(e, today)} />
           ))}
         </ul>
-        <div className="h-[420px] lg:h-[520px]">
+        <div className="order-first h-[320px] sm:h-[420px] lg:order-none lg:sticky lg:top-4 lg:h-[640px]">
           <EventMap events={visible} />
         </div>
       </div>
     </section>
+  );
+}
+
+function EventCard({ event: e, live }: { event: OkcEvent; live: boolean }) {
+  const sports = e.category === "sports";
+  const heritage = e.tags.includes(HERITAGE_TAG);
+  const price = e.price_text ?? (e.is_free ? "Free" : null);
+
+  return (
+    <li
+      className={`rounded-xl border border-line bg-card p-4 shadow-sm border-l-4 ${
+        sports ? "border-l-thunder-blue" : "border-l-thunder-orange"
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
+        <span className={sports ? "text-thunder-blue" : "text-thunder-orange"}>
+          {formatDateRange(e)}
+        </span>
+        {live && (
+          <span className="rounded-full bg-thunder-orange px-2 py-0.5 text-white">Happening now</span>
+        )}
+        {heritage && (
+          <span className="rounded-full bg-thunder-blue/10 px-2 py-0.5 text-thunder-blue dark:text-sky-300">
+            Hispanic Heritage
+          </span>
+        )}
+        {e.tags.includes("new") && (
+          <span className="rounded-full bg-thunder-sun/25 px-2 py-0.5 text-amber-800 dark:text-thunder-sun">
+            New
+          </span>
+        )}
+        {price && (
+          <span className="rounded-full bg-thunder-navy px-2 py-0.5 text-white dark:bg-white dark:text-thunder-navy">
+            {price}
+          </span>
+        )}
+      </div>
+      <h3 className="mt-1 text-lg font-bold leading-snug">{e.title}</h3>
+      <p className="text-sm text-muted">
+        {[e.hours_text, [e.venue, e.city].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}
+      </p>
+      {e.description && <p className="mt-2 text-sm">{e.description}</p>}
+      {e.url && (
+        <a
+          href={e.url}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-block text-sm font-semibold text-thunder-blue hover:underline dark:text-sky-300"
+        >
+          {sports ? "Full Thunder schedule →" : "More info →"}
+        </a>
+      )}
+    </li>
   );
 }
 
@@ -99,13 +138,35 @@ function Chip({
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-3 py-1 text-sm transition ${
+      className={`rounded-full border px-3 py-1 text-sm font-medium transition ${
         active
-          ? "border-orange-600 bg-orange-600 text-white"
-          : "border-orange-300 hover:bg-orange-50 dark:border-stone-600 dark:hover:bg-stone-800"
+          ? "border-thunder-blue bg-thunder-blue text-white shadow"
+          : "border-line bg-card hover:border-thunder-orange"
       }`}
     >
       {children}
     </button>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+  children,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="accent-thunder-orange"
+      />
+      {children}
+    </label>
   );
 }

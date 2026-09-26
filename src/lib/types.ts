@@ -8,6 +8,7 @@ export const CATEGORIES = [
   "dance",
   "film",
   "market",
+  "sports",
   "other",
 ] as const;
 
@@ -18,8 +19,10 @@ export type OkcEvent = {
   title: string;
   description: string | null;
   category: EventCategory;
-  starts_at: string;
-  ends_at: string | null;
+  /** Local calendar date, YYYY-MM-DD. Null with an end_date means "now through". */
+  start_date: string | null;
+  end_date: string | null;
+  hours_text: string | null;
   venue: string | null;
   address: string | null;
   city: string;
@@ -38,9 +41,12 @@ export const CATEGORY_LABELS: Record<EventCategory, string> = {
   music: "Music",
   food: "Food",
   block_party: "Block Parties",
-  family: "Family",
+  family: "Family & Fall Fun",
   dance: "Dance",
   film: "Film",
   market: "Markets",
+  sports: "Thunder & Sports",
   other: "Other",
 };
+
+export const HERITAGE_TAG = "hispanic-heritage";
