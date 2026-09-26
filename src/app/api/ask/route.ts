@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { generateText } from "@/lib/ai/provider";
+import { generateText, keyFingerprint } from "@/lib/ai/provider";
 import { formatDateRange, todayInOkc } from "@/lib/dates";
 import { getUpcomingEvents } from "@/lib/events";
 
@@ -67,11 +67,14 @@ export async function POST(request: Request) {
     });
     return Response.json(parseReply(raw, new Set(events.map((e) => e.id))));
   } catch (err) {
-    console.error("AI request failed", err);
+    const status = (err as { status?: number }).status;
+    console.error("AI request failed", keyFingerprint(), err);
     return Response.json(
       {
         error:
-          "The guide is unavailable right now. Check your AI provider key.",
+          status === 401
+            ? "The guide's AI key was rejected. The site owner needs to update it."
+            : "The guide is unavailable right now. Please try again in a moment.",
       },
       { status: 502 },
     );
