@@ -30,8 +30,14 @@ export type OkcEvent = {
   lng: number | null;
   price_text: string | null;
   is_free: boolean;
+  /** Official website or ticket page. */
   url: string | null;
+  /** Photo URL, or a path under /public such as "/events/mesta-festa.jpg". */
   image_url: string | null;
+  /** Photographer / source credit shown under the photo. */
+  image_credit: string | null;
+  /** "Good to know" bullets: parking, tickets, what's included, etc. */
+  highlights: string[];
   tags: string[];
 };
 

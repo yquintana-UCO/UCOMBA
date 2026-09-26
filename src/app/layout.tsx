@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Fiesta OKC — Fall & Hispanic Heritage Events",
   description:
-    "Festivals, art, block parties and more in Oklahoma City and nearby towns, with a map and an AI guide.",
+    "Festivals, art exhibits, pumpkin patches, and Thunder games in Oklahoma City and nearby towns, all on one map.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

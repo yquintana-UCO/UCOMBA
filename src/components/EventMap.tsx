@@ -2,12 +2,26 @@
 
 import "leaflet/dist/leaflet.css";
 import { useEffect } from "react";
-import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from "react-leaflet";
+import {
+  CircleMarker,
+  MapContainer,
+  Popup,
+  TileLayer,
+  useMap,
+} from "react-leaflet";
+import Link from "next/link";
+import { directionsUrl } from "@/lib/links";
 import type { OkcEvent } from "@/lib/types";
 
 const OKC_CENTER: [number, number] = [35.4676, -97.5164];
 
-export default function EventMap({ events }: { events: OkcEvent[] }) {
+export default function EventMap({
+  events,
+  showDetailsLink = true,
+}: {
+  events: OkcEvent[];
+  showDetailsLink?: boolean;
+}) {
   const pinned = events.filter((e) => e.lat != null && e.lng != null);
 
   return (
@@ -29,8 +43,18 @@ export default function EventMap({ events }: { events: OkcEvent[] }) {
           radius={9}
           pathOptions={
             e.category === "sports"
-              ? { color: "#002d62", fillColor: "#007ac1", fillOpacity: 0.9, weight: 2 }
-              : { color: "#ffffff", fillColor: "#ef3b24", fillOpacity: 0.9, weight: 2 }
+              ? {
+                  color: "#002d62",
+                  fillColor: "#007ac1",
+                  fillOpacity: 0.9,
+                  weight: 2,
+                }
+              : {
+                  color: "#ffffff",
+                  fillColor: "#ef3b24",
+                  fillOpacity: 0.9,
+                  weight: 2,
+                }
           }
         >
           <Popup>
@@ -44,11 +68,13 @@ export default function EventMap({ events }: { events: OkcEvent[] }) {
               </>
             )}
             <br />
-            <a
-              href={directionsUrl(e)}
-              target="_blank"
-              rel="noreferrer"
-            >
+            {showDetailsLink && (
+              <>
+                <Link href={`/events/${e.id}`}>Details</Link>
+                {" · "}
+              </>
+            )}
+            <a href={directionsUrl(e) ?? "#"} target="_blank" rel="noreferrer">
               Directions
             </a>
           </Popup>
@@ -63,15 +89,10 @@ function FitToPins({ points }: { points: [number, number][] }) {
   const map = useMap();
   const key = JSON.stringify(points);
   useEffect(() => {
-    if (points.length > 1) map.fitBounds(points, { padding: [40, 40], maxZoom: 14 });
+    if (points.length > 1)
+      map.fitBounds(points, { padding: [40, 40], maxZoom: 14 });
     else if (points.length === 1) map.setView(points[0], 14);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, key]);
   return null;
-}
-
-/** Prefer the street address so navigation is exact even where the pin is approximate. */
-function directionsUrl(e: OkcEvent) {
-  const destination = e.address ? `${e.address}, ${e.city}, OK` : `${e.lat},${e.lng}`;
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }

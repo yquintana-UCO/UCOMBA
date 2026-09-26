@@ -5,7 +5,8 @@ import { EVENTS } from "../src/lib/events-data.ts";
 
 const cols = [
   "title", "description", "category", "start_date", "end_date", "hours_text", "venue",
-  "address", "city", "lat", "lng", "price_text", "is_free", "url", "tags",
+  "address", "city", "lat", "lng", "price_text", "is_free", "url", "image_url", "image_credit",
+  "highlights", "tags",
 ];
 
 const lit = (v) => {

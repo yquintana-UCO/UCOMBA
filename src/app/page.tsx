@@ -1,4 +1,4 @@
-import FiestaApp from "@/components/FiestaApp";
+import EventExplorer from "@/components/EventExplorer";
 import PapelPicado from "@/components/PapelPicado";
 import { todayInOkc } from "@/lib/dates";
 import { getUpcomingEvents } from "@/lib/events";
@@ -21,8 +21,9 @@ export default async function Home() {
             Fiesta <span className="text-thunder-orange drop-shadow">OKC</span>
           </h1>
           <p className="mx-auto max-w-2xl text-white/85">
-            Festivals, art exhibits, pumpkin patches, and Thunder home games across Oklahoma
-            City, Norman, Edmond, and beyond — all on one map.
+            Festivals, art exhibits, pumpkin patches, and Thunder home games
+            across Oklahoma City, Norman, Edmond, and beyond — all on one map.
+            Tap any event for details, directions, and tickets.
           </p>
         </div>
         <div className="absolute inset-x-0 bottom-0 flex h-2">
@@ -32,7 +33,7 @@ export default async function Home() {
         </div>
       </header>
 
-      <FiestaApp events={events} today={todayInOkc()} />
+      <EventExplorer events={events} today={todayInOkc()} />
     </main>
   );
 }

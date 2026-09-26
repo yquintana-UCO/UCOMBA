@@ -1,10 +1,10 @@
 # Fiesta OKC
 
 Fall, Hispanic Heritage Month, and Thunder game-day events in Oklahoma City and surrounding
-towns: festivals, art exhibits, pumpkin patches, Thunder home games, and more, shown on a list, on a map, and through an AI guide
-that answers questions in English or Spanish.
+towns: festivals, art exhibits, pumpkin patches, Thunder home games, and more, shown on a
+list and on a map, with a details page for each event.
 
-**Stack:** Next.js (App Router) · Tailwind CSS · Supabase · Vercel · Leaflet/OpenStreetMap · Anthropic / OpenAI / OpenRouter
+**Stack:** Next.js (App Router) · Tailwind CSS · Supabase · Vercel · Leaflet/OpenStreetMap
 
 ## Quick start
 
@@ -36,24 +36,16 @@ neither for "date TBA". Past events drop off automatically.
 > Map pins are approximate. "Directions" links use the street address. Thunder games are a
 > partial list; confirm them at nba.com/thunder/schedule.
 
-## AI guide (`POST /api/ask`)
+## Event details & photos
 
-`src/lib/ai/provider.ts` wraps all three providers behind one `generateText()` call.
-Switch providers by changing the `AI_PROVIDER` variable only; no code changes needed.
+Every event has its own page at `/events/<id>` with the full description, hours, cost,
+"Good to know" tips, the official website, directions, an "Add to Google Calendar" link,
+and a map.
 
-| `AI_PROVIDER` | Key variable         | Default model               |
-|---------------|----------------------|-----------------------------|
-| `anthropic`   | `ANTHROPIC_API_KEY`  | `claude-sonnet-5`           |
-| `openai`      | `OPENAI_API_KEY`     | `gpt-5-mini`                |
-| `openrouter`  | `OPENROUTER_API_KEY` | `anthropic/claude-sonnet-5` |
-
-The route loads upcoming events from Supabase and has the model answer **only from that
-list**, so it won't make up events. API keys stay on the server.
-
-```bash
-curl -X POST localhost:3000/api/ask -H 'Content-Type: application/json' \
-  -d '{"question":"Free family events this weekend?"}'
-```
+To add a photo, put the file in `public/events/` (for example `mesta-festa.jpg`), then set
+`image_url: "/events/mesta-festa.jpg"` and `image_credit` on that event in
+`src/lib/events-data.ts`. Events without a photo show colorful category art instead.
+Only use photos you took or have permission to use (organizers often share press photos).
 
 ## Deploy to Vercel
 
@@ -64,10 +56,10 @@ curl -X POST localhost:3000/api/ask -H 'Content-Type: application/json' \
 ## Project layout
 
 ```
-src/app/page.tsx              Home: hero, AI guide, filters, list and map
-src/app/api/ask/route.ts      AI guide endpoint
-src/components/               EventExplorer, EventMap (Leaflet), AskGuide, PapelPicado
-src/lib/ai/provider.ts        Anthropic / OpenAI / OpenRouter switch
+src/app/page.tsx              Home: hero, filters, list and map
+src/app/events/[id]/page.tsx  Event details page
+src/components/               EventExplorer, EventMap (Leaflet), EventImage, EventBadges, PapelPicado
+src/lib/links.ts              Directions and Google Calendar links
 src/lib/events.ts             Supabase query (falls back to events-data.ts)
 src/lib/events-data.ts        Curated event list (source for seed.sql)
 src/lib/dates.ts              Date ranges, "happening now", sorting

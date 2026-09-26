@@ -21,8 +21,10 @@ create table public.events (
   lng          double precision,
   price_text   text,            -- e.g. "Free", "$15 per child, $5 per adult"
   is_free      boolean not null default false,
-  url          text,
-  image_url    text,
+  url          text,            -- official website / tickets
+  image_url    text,            -- photo URL or /events/<file> in public/
+  image_credit text,
+  highlights   text[] not null default '{}',  -- "Good to know" bullets
   tags         text[] not null default '{}',
   published    boolean not null default true,
   created_at   timestamptz not null default now()
