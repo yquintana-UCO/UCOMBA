@@ -39,6 +39,7 @@ function makeTools(deps, state) {
     run: async ({ add, remove }) => {
       const result = await updateEmployerList(deps, state.employers, { add: add.slice(0, MAX_EMPLOYERS), remove });
       state.employers = result.employers.slice(0, MAX_EMPLOYERS);
+      state.lookupErrors = result.errors;
       return JSON.stringify({
         saved: state.employers.map(e => ({ name: e.name, job_board: e.careersUrl || null, system: e.ats || null, note: e.note || null })),
         errors: result.errors
@@ -73,7 +74,7 @@ function makeTools(deps, state) {
 }
 
 async function runAgent({ message, employers }, deps) {
-  const state = { employers: cleanEmployers(employers), results: null };
+  const state = { employers: cleanEmployers(employers), results: null, lookupErrors: [] };
   const saved = state.employers.length ? state.employers.map(e => e.name).join(", ") : "none";
   const final = await deps.anthropic.beta.messages.toolRunner({
     model: MODEL,
@@ -89,7 +90,7 @@ async function runAgent({ message, employers }, deps) {
   const reply = final.stop_reason === "refusal"
     ? "Sorry, I can't help with that request."
     : final.content.filter(b => b.type === "text").map(b => b.text).join("\n").trim();
-  return { reply, employers: state.employers, results: state.results };
+  return { reply, employers: state.employers, results: state.results, lookupErrors: state.lookupErrors };
 }
 
 // Which keys the server can see (true/false only, never values). Free to call.
@@ -116,9 +117,10 @@ module.exports = async (req, res) => {
       ms: Date.now() - started, keys: keyStatus(),
       employers: out.employers.map(e => ({ name: e.name, board: !!e.careersUrl, ats: e.ats || null })),
       groups: out.results ? out.results.groups.map(g => ({ company: g.company, roles: g.roles.length, via: g.via, error: g.error || null })) : null,
-      warnings: out.results ? out.results.warnings : []
+      warnings: out.results ? out.results.warnings : [],
+      lookupErrors: out.lookupErrors.slice(0, 3)
     }));
-    res.status(200).json(out);
+    res.status(200).json({ reply: out.reply, employers: out.employers, results: out.results });
   } catch (err) {
     console.error("scout error", err?.constructor?.name, err?.status || "", String(err?.message || err).slice(0, 300));
     if (err instanceof Anthropic.AuthenticationError) return res.status(502).json({ error: "The UCOMBA API key was rejected." });

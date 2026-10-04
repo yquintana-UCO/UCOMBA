@@ -41,13 +41,20 @@ function detectAts(u) {
   return hit ? { ats: hit.name, atsSlug: hit.slug(parts, url) || null } : { ats: null, atsSlug: null };
 }
 
-async function postJson(fetchImpl, url, body, key) {
+// Keys pasted into Vercel sometimes carry spaces, quotes or a "Bearer " prefix; strip them.
+function cleanKey(key) {
+  return String(key || "").trim().replace(/^["']|["']$/g, "").replace(/^Bearer\s+/i, "").trim();
+}
+
+async function postJson(fetchImpl, url, body, key, keyName) {
   const res = await fetchImpl(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${cleanKey(key)}` },
     body: JSON.stringify(body)
   });
-  if (!res.ok) throw new Error(`${new URL(url).hostname} returned HTTP ${res.status}`);
+  const host = new URL(url).hostname;
+  if (res.status === 401 || res.status === 403) throw new Error(`${host} rejected ${keyName} (HTTP ${res.status}); check the key's value in Vercel`);
+  if (!res.ok) throw new Error(`${host} returned HTTP ${res.status}`);
   return res.json();
 }
 
@@ -61,14 +68,14 @@ async function tavilySearch(deps, query, { includeDomains, maxResults = 8 } = {}
   if (!deps.env.TAVILY_API_KEY) throw new MissingKeyError("TAVILY_API_KEY is not set");
   const body = { query, max_results: maxResults, search_depth: "basic" };
   if (includeDomains?.length) body.include_domains = includeDomains;
-  const data = await postJson(deps.fetch, TAVILY_URL, body, deps.env.TAVILY_API_KEY);
+  const data = await postJson(deps.fetch, TAVILY_URL, body, deps.env.TAVILY_API_KEY, "TAVILY_API_KEY");
   return (data.results || []).filter(r => parseUrl(r.url));
 }
 
 async function firecrawlMarkdown(deps, url) {
   if (!deps.env.FIRECRAWL_API_KEY) throw new MissingKeyError("FIRECRAWL_API_KEY is not set");
   const data = await postJson(deps.fetch, FIRECRAWL_URL,
-    { url, formats: ["markdown"], onlyMainContent: true }, deps.env.FIRECRAWL_API_KEY);
+    { url, formats: ["markdown"], onlyMainContent: true }, deps.env.FIRECRAWL_API_KEY, "FIRECRAWL_API_KEY");
   return (data.data?.markdown || "").slice(0, MARKDOWN_CHARS_PER_POSTING);
 }
 
@@ -234,5 +241,5 @@ async function findOpenRoles(deps, employers, { role, location = "", companies =
 
 module.exports = {
   updateEmployerList, findOpenRoles, resolveEmployer, detectAts, pickBoard, matchesRole, payFromText,
-  extractPostings, MissingKeyError, MODEL
+  extractPostings, MissingKeyError, MODEL, cleanKey
 };

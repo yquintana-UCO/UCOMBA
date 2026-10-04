@@ -152,3 +152,10 @@ test("POST /api/agent shows Anthropic's reason when a request is rejected", asyn
   assert.strictEqual(status, 502);
   assert.match(body.error, /credit balance is too low/);
 });
+
+test("cleanKey strips spaces, quotes and a Bearer prefix", () => {
+  const { cleanKey } = require("../api/_lib/scout");
+  assert.equal(cleanKey("  tvly-abc \n"), "tvly-abc");
+  assert.equal(cleanKey('"tvly-abc"'), "tvly-abc");
+  assert.equal(cleanKey("Bearer tvly-abc"), "tvly-abc");
+});
