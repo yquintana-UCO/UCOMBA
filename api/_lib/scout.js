@@ -206,7 +206,7 @@ const squash = t => (t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const looksLikePosting = u => /job|position|requisition|opening|details|career.*\/\d|\/\d{4,}/i.test(u);
 
 async function rolesFromCareersSite(deps, e, role, location, warnings, stats) {
-  const query = `${e.name} ${role} job ${location || ""}`.replace(/\s+/g, " ").trim();
+  const query = `${e.name} ${role || ""} jobs ${location || ""}`.replace(/\s+/g, " ").trim();
   const own = e.domain ? e.domain.replace(/^www\./, "") : null;
   const found = await tavilySearch(deps, query, { includeDomains: own ? [own, ...ATS_DOMAINS] : undefined, maxResults: 15 });
   // Results on a shared ATS domain must name this company; results on its own domain always count.
@@ -242,7 +242,12 @@ async function rolesForEmployer(deps, e, role, location, related, warnings, stat
   return { rows: await rolesFromCareersSite(deps, e, role, location, warnings, stats), via: "Tavily + Firecrawl" };
 }
 
-async function findOpenRoles(deps, employers, { role, location = "", companies = [], related_terms = [] }) {
+// "any jobs", "all openings", "general roles" and the like mean every open role.
+const normalizeRole = r => /^\s*(any|all|every|general|open|available|current)?\s*(kinds? of\s*)?(jobs?|roles?|positions?|openings?|opportunities)?\s*$/i.test(r || "") ? "" : r.trim();
+
+async function findOpenRoles(deps, employers, { role = "", location = "", companies = [], related_terms = [] }) {
+  role = normalizeRole(role);
+  if (!role) related_terms = [];
   const warnings = new Set();
   // Boards for companies added from the page (names only) are looked up on first use.
   const { employers: resolved, errors } = await updateEmployerList(deps, employers, {});
@@ -266,5 +271,5 @@ async function findOpenRoles(deps, employers, { role, location = "", companies =
 
 module.exports = {
   updateEmployerList, findOpenRoles, resolveEmployer, detectAts, pickBoard, matchesRole, payFromText,
-  extractPostings, MissingKeyError, MODEL, cleanKey
+  extractPostings, MissingKeyError, MODEL, cleanKey, normalizeRole
 };

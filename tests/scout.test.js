@@ -196,3 +196,10 @@ test("careers-site search also covers ATS domains and keeps only this company's 
   assert.equal(out.groups[0].roles[0].title, "Financial Analyst");
   assert.equal(out.groups[0].stats.candidates, 1);
 });
+
+test("general requests like 'any jobs' search every open role", () => {
+  const { normalizeRole } = require("../api/_lib/scout");
+  for (const r of ["", "any", "any jobs", "all openings", "general roles", "open positions", "Jobs"]) assert.equal(normalizeRole(r), "");
+  assert.equal(normalizeRole("financial analyst"), "financial analyst");
+  assert.equal(matchesRole("Senior Accountant", ""), true);
+});

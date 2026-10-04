@@ -11,7 +11,8 @@ const SYSTEM = `You are Job Scout, an assistant that finds open jobs at the comp
 
 You have two tools:
 - update_employer_list: call it whenever the user names companies to watch (or to stop watching). It saves them and finds each company's job board from the name alone.
-- find_open_roles: call it when the user asks about a type of job. It searches the saved companies' job boards. Pass related_terms with common alternative titles for the role (for "HR": recruiter, talent acquisition, people operations, benefits) so close matches aren't missed.
+- find_open_roles: call it when the user asks about jobs. It searches the saved companies' job boards. Pass related_terms with common alternative titles for the role (for "HR": recruiter, talent acquisition, people operations, benefits) so close matches aren't missed.
+  If the user wants any or all open jobs, or doesn't name a type of job, call it right away with an empty role. Never ask the user to pick a role first; search broadly and let them narrow down afterwards. Leave location empty unless the user names one.
 
 If the user names companies and asks about a job in the same message, call update_employer_list first, then find_open_roles.
 If no companies are saved yet and the user asks about jobs, ask them which companies to search.
@@ -51,7 +52,7 @@ function makeTools(deps, state) {
     name: "find_open_roles",
     description: "Search the saved companies' job boards for a type of job. Returns title, location, pay and link for each posting, grouped by company.",
     inputSchema: z.object({
-      role: z.string().describe("The kind of job, e.g. 'HR manager' or 'financial analyst'"),
+      role: z.string().describe("The kind of job, e.g. 'HR manager' or 'financial analyst'; empty for all open jobs"),
       location: z.string().describe("City, state or 'Remote' if the user named one; otherwise empty"),
       companies: z.array(z.string()).describe("Limit to these saved companies; empty for all"),
       related_terms: z.array(z.string()).describe("Alternative job titles that also count as a match")
