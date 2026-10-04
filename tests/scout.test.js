@@ -178,21 +178,21 @@ test("careers-site search also covers ATS domains and keeps only this company's 
       if (url.includes("tavily")) {
         tavilyBody = JSON.parse(opts.body);
         return { ok: true, status: 200, json: async () => ({ results: [
-          { url: "https://devonenergy.wd5.myworkdayjobs.com/en-US/Careers/job/Oklahoma-City/Financial-Analyst_R123", title: "Financial Analyst - Devon Energy", content: "" },
-          { url: "https://otherco.wd1.myworkdayjobs.com/job/Tulsa/Analyst_R9", title: "Analyst - OtherCo", content: "" }
+          { url: "https://careers-devonenergy.icims.com/jobs/123/financial-analyst/job", title: "Financial Analyst - Devon Energy", content: "" },
+          { url: "https://careers-otherco.icims.com/jobs/9/analyst/job", title: "Analyst - OtherCo", content: "" }
         ] }) };
       }
       return { ok: true, status: 200, json: async () => ({ data: { markdown: "Financial Analyst. Oklahoma City, OK." } }) };
     },
     anthropic: { messages: { parse: async () => ({ stop_reason: "end_turn", parsed_output: { jobs: [
-      { url: "https://devonenergy.wd5.myworkdayjobs.com/en-US/Careers/job/Oklahoma-City/Financial-Analyst_R123", title: "Financial Analyst", location: "Oklahoma City, OK", pay: "" },
+      { url: "https://careers-devonenergy.icims.com/jobs/123/financial-analyst/job", title: "Financial Analyst", location: "Oklahoma City, OK", pay: "" },
       { url: "https://invented.example.com/job/1", title: "Made-up Job", location: "Oklahoma City, OK", pay: "" }
     ] } }) } }
   };
   const employers = [{ name: "Devon Energy", careersUrl: "https://www.devonenergy.com/careers", domain: "www.devonenergy.com", v: 2 }];
   const out = await findOpenRoles(deps, employers, { role: "financial analyst", location: "Oklahoma City, OK" });
   assert.ok(tavilyBody.include_domains.includes("devonenergy.com"));
-  assert.ok(tavilyBody.include_domains.includes("myworkdayjobs.com"));
+  assert.ok(tavilyBody.include_domains.includes("icims.com"));
   assert.equal(out.groups[0].roles.length, 1);
   assert.equal(out.groups[0].roles[0].title, "Financial Analyst");
   assert.equal(out.groups[0].stats.candidates, 1);
@@ -239,4 +239,22 @@ test("list pages yield every job, invented links are dropped, and read failures 
     : { ok: false, status: 402, json: async () => ({}) } };
   const bad = await findOpenRoles(failing, [{ name: "OG&E", careersUrl: board, domain: "jobs.oge.com", v: 2 }], { role: "" });
   assert.match(bad.warnings.join(" "), /Couldn't open OG&E's job pages: api.firecrawl.dev returned HTTP 402/);
+});
+
+test("Workday career sites are read through their public job feed", async () => {
+  const { workdaySite } = require("../api/_lib/scout");
+  assert.deepStrictEqual(workdaySite("https://devonenergy.wd5.myworkdayjobs.com/en-US/Careers/job/x"),
+    { origin: "https://devonenergy.wd5.myworkdayjobs.com", tenant: "devonenergy", site: "Careers" });
+  assert.strictEqual(workdaySite("https://www.devonenergy.com/careers"), null);
+  let called;
+  const deps = { env: {}, fetch: async (url, opts) => {
+    called = { url, body: JSON.parse(opts.body) };
+    return { ok: true, status: 200, json: async () => ({ jobPostings: [
+      { title: "Financial Analyst", externalPath: "/job/Oklahoma-City/Financial-Analyst_R1", locationsText: "Oklahoma City, OK" },
+      { title: "Landman", externalPath: "/job/Houston/Landman_R2", locationsText: "Houston, TX" }] }) };
+  } };
+  const out = await findOpenRoles(deps, [{ name: "Devon Energy", careersUrl: "https://devonenergy.wd5.myworkdayjobs.com/en-US/Careers", v: 2 }], { role: "", location: "Oklahoma City" });
+  assert.strictEqual(called.url, "https://devonenergy.wd5.myworkdayjobs.com/wday/cxs/devonenergy/Careers/jobs");
+  assert.strictEqual(out.groups[0].via, "Workday feed");
+  assert.deepStrictEqual(out.groups[0].roles.map(r => r.url), ["https://devonenergy.wd5.myworkdayjobs.com/Careers/job/Oklahoma-City/Financial-Analyst_R1"]);
 });

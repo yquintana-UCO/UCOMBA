@@ -200,6 +200,31 @@ async function rolesFromAshby(deps, e, role, location, related) {
       pay: j.compensation?.compensationTierSummary || "", url: j.jobUrl }));
 }
 
+// Workday career sites (company.wd5.myworkdayjobs.com/Site) have a public JSON job search behind them.
+function workdaySite(href) {
+  const url = parseUrl(href);
+  const host = url && url.hostname.match(/^([^.]+)\.wd\d+\.myworkdayjobs\.com$/i);
+  if (!host) return null;
+  const site = url.pathname.split("/").filter(Boolean).find(p => !/^[a-z]{2}-[A-Z]{2}$/.test(p));
+  return site ? { origin: url.origin, tenant: host[1], site } : null;
+}
+
+async function rolesFromWorkday(deps, wd, role, location, related) {
+  const res = await deps.fetch(`${wd.origin}/wday/cxs/${wd.tenant}/${wd.site}/jobs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": "UCO-Job-Scout/1.0" },
+    body: JSON.stringify({ appliedFacets: {}, limit: 20, offset: 0, searchText: role || "" }),
+    signal: AbortSignal.timeout(20000)
+  });
+  if (!res.ok) throw new Error(`${new URL(wd.origin).hostname} returned HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.jobPostings || [])
+    .filter(j => j.title && j.externalPath)
+    .filter(j => matchesRole(j.title, role, related) || !!role) // Workday already searched for the role
+    .filter(j => matchesLocation(j.locationsText, location) || /locations/i.test(j.locationsText || ""))
+    .map(j => ({ title: j.title, location: j.locationsText || "", pay: "", url: `${wd.origin}/${wd.site}${j.externalPath}` }));
+}
+
 const JobsSchema = z.object({
   jobs: z.array(z.object({
     url: z.string().describe("The job's own link as shown on the page, or the page url for a single posting"),
@@ -219,7 +244,8 @@ async function extractPostings(deps, company, pages) {
     messages: [{ role: "user", content:
       `These pages come from ${company}'s careers site and hiring system. List the open jobs they show, at most 30. ` +
       `A page may be a single job posting or a list of jobs. Use each job's own link when the page shows one; for a single ` +
-      `posting use the page url. Skip closed or expired jobs, search forms, navigation and other companies' jobs. ` +
+      `posting use the page url. Skip closed or expired jobs, search forms, navigation, general "talent community" or ` +
+      `"future opportunities" applications, and jobs at other companies with a similar name. ` +
       `Copy facts only from the pages; leave a field empty when the page doesn't say.\n\n${docs}` }]
   });
   if (response.stop_reason === "refusal" || !response.parsed_output) return [];
@@ -235,12 +261,20 @@ async function rolesFromCareersSite(deps, e, role, location, related, warnings, 
   const own = e.domain ? e.domain.replace(/^www\./, "") : null;
   const found = await tavilySearch(deps, query, { includeDomains: own ? [own, ...ATS_DOMAINS] : undefined, maxResults: 15, rawContent: true });
   // Results on a shared ATS domain must name this company; results on its own domain always count.
-  const key = nameKey(e.name);
+  // Results on a shared hiring-system domain must clearly be this company: its own tenant name
+  // (devonenergy.wd5.myworkdayjobs.com) or its full name, so "Continental" tires isn't Continental Resources.
+  const key = nameKey(e.name), full = squash(e.name);
   const mine = found.filter(r => {
     const host = parseUrl(r.url).hostname;
     if (own && (host === own || host.endsWith(`.${own}`))) return true;
-    return squash(`${r.url} ${r.title} ${r.content}`).includes(key);
+    return squash(host.split(".")[0]).startsWith(key) || squash(`${r.title} ${r.content}`).includes(full);
   });
+  const wd = mine.map(r => workdaySite(r.url)).find(Boolean);
+  if (wd) {
+    stats.via = "Workday feed";
+    try { return await rolesFromWorkday(deps, wd, role, location, related); }
+    catch (err) { stats.workdayError = err.message; }
+  }
   const candidates = mine.filter(r => r.url !== e.careersUrl)
     .sort((a, b) => looksLikePosting(b.url) - looksLikePosting(a.url)).slice(0, MAX_POSTINGS_TO_READ - 1);
   Object.assign(stats, { found: found.length, candidates: candidates.length });
@@ -271,10 +305,13 @@ async function rolesFromCareersSite(deps, e, role, location, related, warnings, 
 }
 
 async function rolesForEmployer(deps, e, role, location, related, warnings, stats = {}) {
+  const wd = workdaySite(e.careersUrl);
+  if (wd) return { rows: await rolesFromWorkday(deps, wd, role, location, related), via: "Workday feed" };
   if (e.ats === "greenhouse" && e.atsSlug) return { rows: await rolesFromGreenhouse(deps, e, role, location, related), via: "Greenhouse feed" };
   if (e.ats === "lever" && e.atsSlug) return { rows: await rolesFromLever(deps, e, role, location, related), via: "Lever feed" };
   if (e.ats === "ashby" && e.atsSlug) return { rows: await rolesFromAshby(deps, e, role, location, related), via: "Ashby feed" };
-  return { rows: await rolesFromCareersSite(deps, e, role, location, related, warnings, stats), via: "Tavily + Firecrawl" };
+  const rows = await rolesFromCareersSite(deps, e, role, location, related, warnings, stats);
+  return { rows, via: stats.via && !stats.workdayError ? stats.via : "Tavily + Firecrawl" };
 }
 
 // "any jobs", "all openings", "general roles" and the like mean every open role.
@@ -306,5 +343,5 @@ async function findOpenRoles(deps, employers, { role = "", location = "", compan
 
 module.exports = {
   updateEmployerList, findOpenRoles, resolveEmployer, detectAts, pickBoard, matchesRole, payFromText,
-  extractPostings, MissingKeyError, MODEL, cleanKey, normalizeRole, BOARD_VERSION
+  extractPostings, MissingKeyError, MODEL, cleanKey, normalizeRole, BOARD_VERSION, workdaySite
 };
