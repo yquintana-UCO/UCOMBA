@@ -107,8 +107,9 @@ async function updateEmployerList(deps, current, { add = [], remove = [] }) {
   employers = employers.concat(toAdd.map(name => ({ name })));
   const errors = [];
   // Find boards for every company we don't have one for yet, including ones added via the page.
+  // Companies whose earlier lookup failed are retried, so a fixed key or outage recovers on its own.
   employers = await Promise.all(employers.map(async e => {
-    if (e.careersUrl || e.note) return e;
+    if (e.careersUrl) return e;
     try { return await resolveEmployer(deps, e.name); }
     catch (err) {
       errors.push(`${e.name}: ${err.message}`);

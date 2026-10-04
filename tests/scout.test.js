@@ -159,3 +159,13 @@ test("cleanKey strips spaces, quotes and a Bearer prefix", () => {
   assert.equal(cleanKey('"tvly-abc"'), "tvly-abc");
   assert.equal(cleanKey("Bearer tvly-abc"), "tvly-abc");
 });
+
+test("companies whose earlier lookup failed are looked up again", async () => {
+  const deps = {
+    env: { TAVILY_API_KEY: "k" },
+    fetch: async () => ({ ok: true, status: 200, json: async () => ({ results: [{ url: "https://boards.greenhouse.io/acme" }] }) })
+  };
+  const { employers } = await updateEmployerList(deps, [{ name: "Acme", careersUrl: null, note: "Lookup failed" }], {});
+  assert.equal(employers[0].careersUrl, "https://boards.greenhouse.io/acme");
+  assert.equal(employers[0].ats, "greenhouse");
+});
