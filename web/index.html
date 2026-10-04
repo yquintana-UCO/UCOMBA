@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UCO Job Scout</title>
+<style>
+  :root {
+    --uco-blue: #002B7F;
+    --uco-blue-dark: #001D57;
+    --uco-gold: #FFD100;
+    --bg: #F5F7FB;
+    --card: #FFFFFF;
+    --text: #1A1F2E;
+    --muted: #5B6478;
+    --border: #DDE3EE;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { background: var(--uco-blue); color: #fff; border-bottom: 6px solid var(--uco-gold); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+  .brand { display: flex; align-items: center; gap: 12px; padding: 18px 0; }
+  .badge { background: var(--uco-gold); color: var(--uco-blue); font-weight: 900; padding: 6px 10px; border-radius: 6px; letter-spacing: .5px; }
+  .brand h1 { margin: 0; font-size: 1.5rem; }
+  .brand p { margin: 2px 0 0; opacity: .85; font-size: .9rem; }
+
+  .controls { display: grid; grid-template-columns: 1fr 240px; gap: 12px; padding: 0 0 22px; }
+  .controls input, .controls select {
+    width: 100%; font-size: 1rem; padding: 12px 14px; border-radius: 8px;
+    border: 2px solid transparent; background: #fff; color: var(--text);
+  }
+  .controls input:focus, .controls select:focus { outline: none; border-color: var(--uco-gold); }
+  @media (max-width: 640px) { .controls { grid-template-columns: 1fr; } }
+
+  main { padding: 20px 0 40px; }
+  .watch { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
+  .watch h2 { margin: 0 0 10px; font-size: 1rem; color: var(--uco-blue); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chip { background: var(--uco-blue); color: #fff; border-radius: 999px; padding: 5px 6px 5px 12px; font-size: .85rem; display: inline-flex; gap: 6px; align-items: center; }
+  .chip button { background: var(--uco-gold); color: var(--uco-blue); border: 0; border-radius: 50%; width: 20px; height: 20px; font-weight: 700; cursor: pointer; line-height: 1; }
+  .add { display: flex; gap: 6px; }
+  .add input { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: .85rem; }
+  .btn { background: var(--uco-gold); color: var(--uco-blue); border: 0; font-weight: 700; padding: 7px 12px; border-radius: 6px; cursor: pointer; }
+  .btn:hover { filter: brightness(.95); }
+  label.only { font-size: .85rem; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+
+  .count { color: var(--muted); margin: 0 0 12px; font-size: .9rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .job { background: var(--card); border: 1px solid var(--border); border-left: 5px solid var(--uco-blue); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+  .job:hover { border-left-color: var(--uco-gold); }
+  .job h3 { margin: 0; font-size: 1.05rem; color: var(--uco-blue); }
+  .job .co { font-weight: 600; }
+  .job .meta { color: var(--muted); font-size: .85rem; }
+  .tag { align-self: flex-start; background: #FFF6CC; color: var(--uco-blue-dark); border: 1px solid var(--uco-gold); border-radius: 4px; padding: 2px 8px; font-size: .75rem; font-weight: 600; }
+  .job a { margin-top: 6px; align-self: flex-start; text-decoration: none; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; }
+  mark { background: var(--uco-gold); color: var(--uco-blue); padding: 0 2px; border-radius: 2px; }
+  footer { text-align: center; color: var(--muted); font-size: .8rem; padding: 20px 0 30px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <span class="badge">UCO</span>
+      <div>
+        <h1>Job Scout</h1>
+        <p>Open roles at the companies you choose</p>
+      </div>
+    </div>
+    <div class="controls">
+      <input id="q" type="search" placeholder="Search jobs, companies, or locations…" aria-label="Search jobs">
+      <select id="industry" aria-label="Filter by industry">
+        <option value="">All industries</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="watch">
+    <h2>My watched companies</h2>
+    <div class="chips" id="chips"></div>
+    <div class="chips" style="margin-top:10px">
+      <form class="add" id="addForm">
+        <input id="newCo" placeholder="Add a company…" aria-label="Add a company">
+        <button class="btn" type="submit">Watch</button>
+      </form>
+      <label class="only"><input type="checkbox" id="onlyWatched"> Only watched companies</label>
+    </div>
+  </section>
+
+  <p class="count" id="count"></p>
+  <div class="grid" id="results"></div>
+</main>
+
+<footer>Prototype with sample data. In production, results come from <code>GET /jobs</code>.</footer>
+
+<script>
+  const INDUSTRIES = [
+    "Technology", "Finance & Banking", "Healthcare", "Energy", "Education",
+    "Government & Public Sector", "Manufacturing", "Retail & Consumer",
+    "Consulting", "Nonprofit", "Aerospace & Defense", "Media & Entertainment"
+  ];
+
+  // Sample data. The backend replaces this with GET /jobs.
+  const JOBS = [
+    { title: "Financial Analyst", company: "Devon Energy", industry: "Energy", location: "Oklahoma City, OK", remote: false, posted: 2 },
+    { title: "Data Engineer", company: "Paycom", industry: "Technology", location: "Oklahoma City, OK", remote: true, posted: 1 },
+    { title: "Project Manager", company: "Tinker AFB (Civilian)", industry: "Aerospace & Defense", location: "Midwest City, OK", remote: false, posted: 5 },
+    { title: "Credit Analyst", company: "BancFirst", industry: "Finance & Banking", location: "Edmond, OK", remote: false, posted: 3 },
+    { title: "Healthcare Operations Manager", company: "INTEGRIS Health", industry: "Healthcare", location: "Oklahoma City, OK", remote: false, posted: 4 },
+    { title: "Business Analyst", company: "Love's Travel Stops", industry: "Retail & Consumer", location: "Oklahoma City, OK", remote: true, posted: 1 },
+    { title: "Supply Chain Analyst", company: "Boeing", industry: "Aerospace & Defense", location: "Oklahoma City, OK", remote: false, posted: 6 },
+    { title: "Management Consultant", company: "Deloitte", industry: "Consulting", location: "Remote (US)", remote: true, posted: 2 },
+    { title: "Program Coordinator", company: "University of Central Oklahoma", industry: "Education", location: "Edmond, OK", remote: false, posted: 7 },
+    { title: "Marketing Manager", company: "Hobby Lobby", industry: "Retail & Consumer", location: "Oklahoma City, OK", remote: false, posted: 3 },
+    { title: "Policy Analyst", company: "State of Oklahoma", industry: "Government & Public Sector", location: "Oklahoma City, OK", remote: false, posted: 9 },
+    { title: "Product Manager", company: "Paycom", industry: "Technology", location: "Remote (US)", remote: true, posted: 2 },
+    { title: "Plant Operations Supervisor", company: "Mercury Marine", industry: "Manufacturing", location: "Stillwater, OK", remote: false, posted: 4 },
+    { title: "Development Director", company: "Regional Food Bank of Oklahoma", industry: "Nonprofit", location: "Oklahoma City, OK", remote: false, posted: 8 },
+    { title: "Corporate Strategy Associate", company: "OG&E", industry: "Energy", location: "Oklahoma City, OK", remote: false, posted: 1 },
+    { title: "Digital Content Producer", company: "Griffin Media", industry: "Media & Entertainment", location: "Oklahoma City, OK", remote: false, posted: 5 }
+  ];
+
+  const $ = id => document.getElementById(id);
+  const q = $("q"), sel = $("industry"), only = $("onlyWatched");
+
+  let watched = ["Devon Energy", "Paycom", "BancFirst"];
+  try { watched = JSON.parse(localStorage.getItem("watched")) || watched; } catch (e) {}
+  const save = () => { try { localStorage.setItem("watched", JSON.stringify(watched)); } catch (e) {} };
+
+  INDUSTRIES.forEach(i => sel.add(new Option(i, i)));
+
+  const esc = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const hl = (text, term) => {
+    const safe = esc(text);
+    if (!term) return safe;
+    const re = new RegExp("(" + esc(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig");
+    return safe.replace(re, "<mark>$1</mark>");
+  };
+
+  function renderChips() {
+    $("chips").innerHTML = watched.length
+      ? watched.map((c, i) => `<span class="chip">${esc(c)}<button aria-label="Remove ${esc(c)}" data-i="${i}">×</button></span>`).join("")
+      : `<span class="meta">No companies yet. Add one below.</span>`;
+  }
+
+  function render() {
+    const term = q.value.trim();
+    const t = term.toLowerCase();
+    const list = JOBS.filter(j =>
+      (!sel.value || j.industry === sel.value) &&
+      (!only.checked || watched.some(w => w.toLowerCase() === j.company.toLowerCase())) &&
+      (!t || [j.title, j.company, j.location, j.industry].some(f => f.toLowerCase().includes(t)))
+    ).sort((a, b) => a.posted - b.posted);
+
+    $("count").textContent = `${list.length} open role${list.length === 1 ? "" : "s"}` +
+      (sel.value ? ` in ${sel.value}` : "") + (term ? ` matching "${term}"` : "");
+
+    $("results").innerHTML = list.length ? list.map(j => `
+      <article class="job">
+        <span class="tag">${esc(j.industry)}</span>
+        <h3>${hl(j.title, term)}</h3>
+        <div class="co">${hl(j.company, term)}</div>
+        <div class="meta">${hl(j.location, term)}${j.remote ? " · Remote-friendly" : ""} · ${j.posted}d ago</div>
+        <a class="btn" href="#" onclick="return false">View posting →</a>
+      </article>`).join("")
+      : `<div class="empty">No jobs found. Try a different search or industry.</div>`;
+  }
+
+  $("chips").addEventListener("click", e => {
+    if (e.target.dataset.i !== undefined) { watched.splice(+e.target.dataset.i, 1); save(); renderChips(); render(); }
+  });
+  $("addForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = $("newCo").value.trim();
+    if (v && !watched.some(w => w.toLowerCase() === v.toLowerCase())) { watched.push(v); save(); renderChips(); render(); }
+    $("newCo").value = "";
+  });
+  [q, sel, only].forEach(el => el.addEventListener("input", render));
+
+  renderChips();
+  render();
+</script>
+</body>
+</html>
