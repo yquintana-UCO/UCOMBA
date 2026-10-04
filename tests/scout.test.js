@@ -135,3 +135,20 @@ test("GET /api/agent reports key presence without revealing values", async () =>
   assert.deepStrictEqual(body, { ready: { claude: true, tavily: true, firecrawl: false } });
   assert.ok(!JSON.stringify(body).includes("secret"));
 });
+
+test("POST /api/agent shows Anthropic's reason when a request is rejected", async () => {
+  const Anthropic = require("@anthropic-ai/sdk").default;
+  const handler = require("../api/agent");
+  const saved = { ...process.env };
+  process.env.UCOMBA = "k";
+  const orig = Anthropic.Beta.Messages.prototype.toolRunner;
+  Anthropic.Beta.Messages.prototype.toolRunner = async () => {
+    throw new Anthropic.BadRequestError(400, { type: "error", error: { type: "invalid_request_error", message: "Your credit balance is too low to access the Anthropic API." } }, "400", new Headers());
+  };
+  let status, body;
+  const res = { status(c) { status = c; return this; }, json(b) { body = b; return this; } };
+  try { await handler({ method: "POST", body: { message: "hi", employers: [] } }, res); }
+  finally { Anthropic.Beta.Messages.prototype.toolRunner = orig; process.env = saved; }
+  assert.strictEqual(status, 502);
+  assert.match(body.error, /credit balance is too low/);
+});

@@ -123,7 +123,11 @@ module.exports = async (req, res) => {
     console.error("scout error", err?.constructor?.name, err?.status || "", String(err?.message || err).slice(0, 300));
     if (err instanceof Anthropic.AuthenticationError) return res.status(502).json({ error: "The UCOMBA API key was rejected." });
     if (err instanceof Anthropic.RateLimitError) return res.status(429).json({ error: "Too many requests right now. Try again in a minute." });
-    if (err instanceof Anthropic.APIError) return res.status(502).json({ error: `Claude API error (${err.status}).` });
+    // Pass along Anthropic's own explanation (e.g. "credit balance is too low"); it never contains the key.
+    if (err instanceof Anthropic.APIError) {
+      const detail = err.error?.error?.message;
+      return res.status(502).json({ error: `Claude API error (${err.status})${detail ? `: ${String(detail).slice(0, 300)}` : "."}` });
+    }
     res.status(500).json({ error: "The scout hit an unexpected error." });
   }
 };
