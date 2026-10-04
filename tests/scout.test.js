@@ -1,0 +1,260 @@
+const test = require("node:test");
+const assert = require("node:assert");
+const { updateEmployerList, findOpenRoles, detectAts, pickBoard, matchesRole, payFromText } = require("../api/_lib/scout");
+const { runAgent, cleanEmployers } = require("../api/agent");
+
+const env = { TAVILY_API_KEY: "tvly-test", FIRECRAWL_API_KEY: "fc-test" };
+const json = data => ({ ok: true, json: async () => data });
+
+// Simulates Tavily, Firecrawl and the public ATS feeds.
+function fakeWeb(calls = []) {
+  return async (url, opts = {}) => {
+    const body = opts.body ? JSON.parse(opts.body) : null;
+    calls.push({ url, body, headers: opts.headers });
+    if (url === "https://api.tavily.com/search") {
+      if (/Paycom careers/.test(body.query)) return json({ results: [
+        { url: "https://www.indeed.com/cmp/Paycom/jobs", title: "Paycom jobs | Indeed" },
+        { url: "https://boards.greenhouse.io/paycom", title: "Jobs at Paycom" }] });
+      if (/Devon Energy careers/.test(body.query)) return json({ results: [
+        { url: "https://www.devonenergy.com/careers", title: "Careers | Devon Energy" }] });
+      if (/Nowhere Inc careers/.test(body.query)) return json({ results: [
+        { url: "https://www.linkedin.com/company/nowhere", title: "LinkedIn" }] });
+      if (body.include_domains?.[0] === "devonenergy.com") return json({ results: [
+        { url: "https://www.devonenergy.com/careers", title: "Careers" },
+        { url: "https://www.devonenergy.com/careers/job/hr-business-partner-123", title: "HR Business Partner" },
+        { url: "https://www.devonenergy.com/careers/search?q=hr", title: "Search results" }] });
+      return json({ results: [] });
+    }
+    if (url === "https://api.firecrawl.dev/v2/scrape") return json({ success: true, data: { markdown: `# Page for ${body.url}\nSalary $85,000 - $105,000 per year. Oklahoma City, OK` } });
+    if (url.startsWith("https://boards-api.greenhouse.io/v1/boards/paycom/jobs")) return json({ jobs: [
+      { title: "Talent Acquisition Partner", location: { name: "Oklahoma City, OK" }, absolute_url: "https://boards.greenhouse.io/paycom/jobs/1", content: "Pay: $60,000 - $75,000 per year", departments: [{ name: "Human Resources" }] },
+      { title: "HR Generalist", location: { name: "Remote" }, absolute_url: "https://boards.greenhouse.io/paycom/jobs/2", content: "", departments: [] },
+      { title: "Software Engineer", location: { name: "Oklahoma City, OK" }, absolute_url: "https://boards.greenhouse.io/paycom/jobs/3", content: "", departments: [{ name: "Engineering" }] }] });
+    return { ok: false, status: 404, json: async () => ({}) };
+  };
+}
+
+// Claude stand-in for the job extractor: lists the real posting, skips the board and search pages.
+const fakeAnthropic = {
+  messages: { parse: async ({ messages }) => {
+    const urls = [...messages[0].content.matchAll(/url="([^"]+)"/g)].map(m => m[1]).filter(u => /\/job\//.test(u));
+    return { stop_reason: "end_turn", parsed_output: { jobs: urls.map(url => ({
+      url, title: "HR Business Partner", location: "Oklahoma City, OK", pay: "$85,000 - $105,000 per year" })) } };
+  } }
+};
+
+test("detectAts and pickBoard prefer the employer's own hosted board over aggregators", () => {
+  assert.deepStrictEqual(detectAts("https://boards.greenhouse.io/paycom/jobs/1"), { ats: "greenhouse", atsSlug: "paycom" });
+  assert.deepStrictEqual(detectAts("https://jobs.lever.co/acme"), { ats: "lever", atsSlug: "acme" });
+  assert.deepStrictEqual(detectAts("https://boards.greenhouse.io/embed/job_board?for=paycom"), { ats: "greenhouse", atsSlug: "paycom" });
+  assert.strictEqual(detectAts("https://acme.wd5.myworkdayjobs.com/en-US/External").ats, "workday");
+  assert.strictEqual(pickBoard([{ url: "https://www.indeed.com/cmp/x" }, { url: "https://x.com/careers" }]), "https://x.com/careers");
+  assert.strictEqual(pickBoard([{ url: "https://www.linkedin.com/company/x" }]), null);
+});
+
+test("matchesRole and payFromText", () => {
+  assert.ok(matchesRole("Senior HR Business Partner", "hr partner"));
+  assert.ok(matchesRole("Talent Acquisition Partner", "hr", ["talent acquisition"]));
+  assert.ok(!matchesRole("Software Engineer", "hr", ["recruiter"]));
+  assert.strictEqual(payFromText("Range: $60,000 - $75,000 per year plus bonus"), "$60,000 - $75,000 per year");
+  assert.strictEqual(payFromText("Competitive pay"), "");
+});
+
+test("update_employer_list finds each company's job board from the name", async () => {
+  const calls = [];
+  const deps = { fetch: fakeWeb(calls), env };
+  const r = await updateEmployerList(deps, [], { add: ["Paycom", "Devon Energy", "Nowhere Inc", "paycom"], remove: [] });
+  const byName = Object.fromEntries(r.employers.map(e => [e.name, e]));
+  assert.deepStrictEqual(Object.keys(byName), ["Paycom", "Devon Energy", "Nowhere Inc"]); // de-duplicated
+  assert.strictEqual(byName.Paycom.ats, "greenhouse");
+  assert.strictEqual(byName.Paycom.careersUrl, "https://boards.greenhouse.io/paycom");
+  assert.strictEqual(byName["Devon Energy"].domain, "www.devonenergy.com");
+  assert.strictEqual(byName["Nowhere Inc"].careersUrl, null);
+  assert.strictEqual(calls[0].headers.Authorization, "Bearer tvly-test");
+  const removed = await updateEmployerList(deps, r.employers, { add: [], remove: ["nowhere inc"] });
+  assert.deepStrictEqual(removed.employers.map(e => e.name), ["Paycom", "Devon Energy"]);
+});
+
+test("find_open_roles reads ATS feeds directly and other sites via Tavily + Firecrawl + Claude", async () => {
+  const deps = { fetch: fakeWeb(), env, anthropic: fakeAnthropic };
+  const { employers } = await updateEmployerList(deps, [], { add: ["Paycom", "Devon Energy"], remove: [] });
+  const r = await findOpenRoles(deps, employers, { role: "hr", related_terms: ["talent acquisition", "recruiter"] });
+  const paycom = r.groups.find(g => g.company === "Paycom");
+  assert.strictEqual(paycom.via, "Greenhouse feed");
+  assert.deepStrictEqual(paycom.roles.map(x => x.title), ["Talent Acquisition Partner", "HR Generalist"]);
+  assert.strictEqual(paycom.roles[0].pay, "$60,000 - $75,000 per year");
+  const devon = r.groups.find(g => g.company === "Devon Energy");
+  assert.strictEqual(devon.via, "Tavily + Firecrawl");
+  assert.deepStrictEqual(devon.roles.map(x => x.url), ["https://www.devonenergy.com/careers/job/hr-business-partner-123"]);
+  assert.strictEqual(devon.roles[0].pay, "$85,000 - $105,000 per year");
+});
+
+test("find_open_roles degrades gracefully without Firecrawl or Tavily keys", async () => {
+  const noFc = { fetch: fakeWeb(), env: { TAVILY_API_KEY: "t" }, anthropic: fakeAnthropic };
+  const { employers } = await updateEmployerList(noFc, [], { add: ["Devon Energy"], remove: [] });
+  const r = await findOpenRoles(noFc, employers, { role: "hr" });
+  assert.ok(r.groups[0].roles.every(x => x.unverified));
+  assert.match(r.warnings.join(" "), /FIRECRAWL_API_KEY/);
+  const none = await findOpenRoles({ fetch: fakeWeb(), env: {}, anthropic: fakeAnthropic }, [{ name: "Acme" }], { role: "hr" });
+  assert.match(none.warnings.join(" "), /TAVILY_API_KEY/);
+  assert.strictEqual(none.groups[0].roles.length, 0);
+});
+
+test("cleanEmployers drops bad input and non-http URLs", () => {
+  const out = cleanEmployers([{ name: " Paycom ", careersUrl: "javascript:alert(1)", extra: "x" }, { name: "" }, null, "junk"]);
+  assert.deepStrictEqual(out, [{ name: "Paycom" }]);
+});
+
+test("runAgent wires both tools to the employer list and results", async () => {
+  let seenParams;
+  const anthropic = { ...fakeAnthropic, beta: { messages: { toolRunner: async params => {
+    seenParams = params;
+    const tool = n => params.tools.find(t => t.name === n);
+    await tool("update_employer_list").run({ add: ["Paycom"], remove: [] });
+    await tool("find_open_roles").run({ role: "hr", location: "", companies: [], related_terms: ["talent acquisition"] });
+    return { stop_reason: "end_turn", content: [{ type: "text", text: "Found 2 HR roles at Paycom." }] };
+  } } } };
+  const out = await runAgent({ message: "Watch Paycom and find HR jobs", employers: [] }, { fetch: fakeWeb(), env, anthropic });
+  assert.strictEqual(seenParams.model, "claude-opus-5-5");
+  assert.strictEqual(seenParams.fallbacks, "default");
+  assert.ok(!("tool_choice" in seenParams));
+  assert.strictEqual(out.reply, "Found 2 HR roles at Paycom.");
+  assert.strictEqual(out.employers[0].ats, "greenhouse");
+  assert.strictEqual(out.results.groups[0].roles.length, 2);
+});
+
+test("GET /api/agent reports key presence without revealing values", async () => {
+  const handler = require("../api/agent");
+  const saved = { ...process.env };
+  process.env.UCOMBA = "secret-claude"; process.env.TAVILY_API_KEY = "secret-tavily"; delete process.env.FIRECRAWL_API_KEY;
+  let status, body;
+  const res = { status(c) { status = c; return this; }, json(b) { body = b; return this; } };
+  await handler({ method: "GET" }, res);
+  process.env = saved;
+  assert.strictEqual(status, 200);
+  assert.deepStrictEqual(body, { ready: { claude: true, tavily: true, firecrawl: false } });
+  assert.ok(!JSON.stringify(body).includes("secret"));
+});
+
+test("POST /api/agent shows Anthropic's reason when a request is rejected", async () => {
+  const Anthropic = require("@anthropic-ai/sdk").default;
+  const handler = require("../api/agent");
+  const saved = { ...process.env };
+  process.env.UCOMBA = "k";
+  const orig = Anthropic.Beta.Messages.prototype.toolRunner;
+  Anthropic.Beta.Messages.prototype.toolRunner = async () => {
+    throw new Anthropic.BadRequestError(400, { type: "error", error: { type: "invalid_request_error", message: "Your credit balance is too low to access the Anthropic API." } }, "400", new Headers());
+  };
+  let status, body;
+  const res = { status(c) { status = c; return this; }, json(b) { body = b; return this; } };
+  try { await handler({ method: "POST", body: { message: "hi", employers: [] } }, res); }
+  finally { Anthropic.Beta.Messages.prototype.toolRunner = orig; process.env = saved; }
+  assert.strictEqual(status, 502);
+  assert.match(body.error, /credit balance is too low/);
+});
+
+test("cleanKey strips spaces, quotes and a Bearer prefix", () => {
+  const { cleanKey } = require("../api/_lib/scout");
+  assert.equal(cleanKey("  tvly-abc \n"), "tvly-abc");
+  assert.equal(cleanKey('"tvly-abc"'), "tvly-abc");
+  assert.equal(cleanKey("Bearer tvly-abc"), "tvly-abc");
+});
+
+test("companies whose earlier lookup failed are looked up again", async () => {
+  const deps = {
+    env: { TAVILY_API_KEY: "k" },
+    fetch: async () => ({ ok: true, status: 200, json: async () => ({ results: [{ url: "https://boards.greenhouse.io/acme" }] }) })
+  };
+  const { employers } = await updateEmployerList(deps, [{ name: "Acme", careersUrl: null, note: "Lookup failed" }], {});
+  assert.equal(employers[0].careersUrl, "https://boards.greenhouse.io/acme");
+  assert.equal(employers[0].ats, "greenhouse");
+});
+
+test("careers-site search also covers ATS domains and keeps only this company's postings", async () => {
+  let tavilyBody;
+  const deps = {
+    env: { TAVILY_API_KEY: "k", FIRECRAWL_API_KEY: "f" },
+    fetch: async (url, opts) => {
+      if (url.includes("tavily")) {
+        tavilyBody = JSON.parse(opts.body);
+        return { ok: true, status: 200, json: async () => ({ results: [
+          { url: "https://careers-devonenergy.icims.com/jobs/123/financial-analyst/job", title: "Financial Analyst - Devon Energy", content: "" },
+          { url: "https://careers-otherco.icims.com/jobs/9/analyst/job", title: "Analyst - OtherCo", content: "" }
+        ] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ data: { markdown: "Financial Analyst. Oklahoma City, OK." } }) };
+    },
+    anthropic: { messages: { parse: async () => ({ stop_reason: "end_turn", parsed_output: { jobs: [
+      { url: "https://careers-devonenergy.icims.com/jobs/123/financial-analyst/job", title: "Financial Analyst", location: "Oklahoma City, OK", pay: "" },
+      { url: "https://invented.example.com/job/1", title: "Made-up Job", location: "Oklahoma City, OK", pay: "" }
+    ] } }) } }
+  };
+  const employers = [{ name: "Devon Energy", careersUrl: "https://www.devonenergy.com/careers", domain: "www.devonenergy.com", v: 2 }];
+  const out = await findOpenRoles(deps, employers, { role: "financial analyst", location: "Oklahoma City, OK" });
+  assert.ok(tavilyBody.include_domains.includes("devonenergy.com"));
+  assert.ok(tavilyBody.include_domains.includes("icims.com"));
+  assert.equal(out.groups[0].roles.length, 1);
+  assert.equal(out.groups[0].roles[0].title, "Financial Analyst");
+  assert.equal(out.groups[0].stats.candidates, 1);
+});
+
+test("general requests like 'any jobs' search every open role", () => {
+  const { normalizeRole } = require("../api/_lib/scout");
+  for (const r of ["", "any", "any jobs", "all openings", "general roles", "open positions", "Jobs"]) assert.equal(normalizeRole(r), "");
+  assert.equal(normalizeRole("financial analyst"), "financial analyst");
+  assert.equal(matchesRole("Senior Accountant", ""), true);
+});
+
+test("board picking rejects aggregators, news and look-alike sites", () => {
+  const results = [
+    { url: "https://www.jobzmall.com/devon-energy/jobs", title: "Devon Energy Jobs" },
+    { url: "https://www.cnbc.com/2021/08/31/job-openings.html", title: "Job openings near a high", content: "BancFirst" },
+    { url: "https://www.paycomcenter.com/employment-opportunities", title: "Employment | Paycom Center" },
+    { url: "https://www.paycom.com/careers/", title: "Careers at Paycom" }
+  ];
+  assert.strictEqual(pickBoard(results, "Devon Energy"), null);
+  assert.strictEqual(pickBoard(results, "BancFirst"), null);
+  assert.strictEqual(pickBoard(results, "Paycom"), "https://www.paycom.com/careers/");
+  assert.strictEqual(pickBoard([{ url: "https://www.clr.com/careers", title: "Careers | Continental Resources" }], "Continental Resources"), "https://www.clr.com/careers");
+  assert.strictEqual(pickBoard([{ url: "https://jobs.loves.com/", title: "Jobs" }], "Love's Travel Stops"), "https://jobs.loves.com/");
+});
+
+test("list pages yield every job, invented links are dropped, and read failures are reported", async () => {
+  const board = "https://jobs.oge.com/go/View-All-OG&E-Jobs/9296300";
+  const deps = {
+    env: { TAVILY_API_KEY: "k", FIRECRAWL_API_KEY: "f" },
+    fetch: async url => url.includes("tavily")
+      ? { ok: true, status: 200, json: async () => ({ results: [] }) }
+      : { ok: true, status: 200, json: async () => ({ data: { markdown: "[Accountant](https://jobs.oge.com/job/1) Oklahoma City\n[Lineman](https://jobs.oge.com/job/2) Enid" } }) },
+    anthropic: { messages: { parse: async () => ({ stop_reason: "end_turn", parsed_output: { jobs: [
+      { url: "https://jobs.oge.com/job/1", title: "Accountant", location: "Oklahoma City, OK", pay: "" },
+      { url: "https://jobs.oge.com/job/2", title: "Lineman", location: "Enid, OK", pay: "" },
+      { url: "https://jobs.oge.com/job/999", title: "Not on the page", location: "", pay: "" }] } }) } }
+  };
+  const out = await findOpenRoles(deps, [{ name: "OG&E", careersUrl: board, domain: "jobs.oge.com", v: 2 }], { role: "" });
+  assert.deepStrictEqual(out.groups[0].roles.map(r => r.title), ["Accountant", "Lineman"]);
+
+  const failing = { ...deps, fetch: async url => url.includes("tavily")
+    ? { ok: true, status: 200, json: async () => ({ results: [] }) }
+    : { ok: false, status: 402, json: async () => ({}) } };
+  const bad = await findOpenRoles(failing, [{ name: "OG&E", careersUrl: board, domain: "jobs.oge.com", v: 2 }], { role: "" });
+  assert.match(bad.warnings.join(" "), /Couldn't open OG&E's job pages: api.firecrawl.dev returned HTTP 402/);
+});
+
+test("Workday career sites are read through their public job feed", async () => {
+  const { workdaySite } = require("../api/_lib/scout");
+  assert.deepStrictEqual(workdaySite("https://devonenergy.wd5.myworkdayjobs.com/en-US/Careers/job/x"),
+    { origin: "https://devonenergy.wd5.myworkdayjobs.com", tenant: "devonenergy", site: "Careers" });
+  assert.strictEqual(workdaySite("https://www.devonenergy.com/careers"), null);
+  let called;
+  const deps = { env: {}, fetch: async (url, opts) => {
+    called = { url, body: JSON.parse(opts.body) };
+    return { ok: true, status: 200, json: async () => ({ jobPostings: [
+      { title: "Financial Analyst", externalPath: "/job/Oklahoma-City/Financial-Analyst_R1", locationsText: "Oklahoma City, OK" },
+      { title: "Landman", externalPath: "/job/Houston/Landman_R2", locationsText: "Houston, TX" }] }) };
+  } };
+  const out = await findOpenRoles(deps, [{ name: "Devon Energy", careersUrl: "https://devonenergy.wd5.myworkdayjobs.com/en-US/Careers", v: 2 }], { role: "", location: "Oklahoma City" });
+  assert.strictEqual(called.url, "https://devonenergy.wd5.myworkdayjobs.com/wday/cxs/devonenergy/Careers/jobs");
+  assert.strictEqual(out.groups[0].via, "Workday feed");
+  assert.deepStrictEqual(out.groups[0].roles.map(r => r.url), ["https://devonenergy.wd5.myworkdayjobs.com/Careers/job/Oklahoma-City/Financial-Analyst_R1"]);
+});

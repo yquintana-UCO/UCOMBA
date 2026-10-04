@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "npm install --omit=dev",
+  "buildCommand": "echo 'Static site: no build step'",
+  "outputDirectory": "web",
+  "functions": {
+    "api/agent.js": { "maxDuration": 60 }
+  }
+}

@@ -1,1 +1,11 @@
-# UCOMBA
+# UCOMBA: Job Scout Agent
+
+An agent that finds open jobs at the companies a user chooses, shown in a
+blue and gold page with an industry dropdown and a search bar.
+
+- **Architecture plan:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Clickable prototype:** open [web/index.html](web/index.html) in a browser
+- **Live jobs API:** [api/jobs.js](api/jobs.js) returns Oklahoma + US-remote jobs (The Muse, Remotive)
+- **API key:** set the `UCOMBA` environment variable in Vercel (locally: copy `.env.example` to `.env`)
+- **Ask the Scout agent:** [api/agent.js](api/agent.js): Claude + `update_employer_list` / `find_open_roles` (Tavily + Firecrawl). Needs `TAVILY_API_KEY` and `FIRECRAWL_API_KEY`
+- **Tests:** `npm install && npm test`

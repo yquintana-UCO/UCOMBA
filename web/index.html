@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Job Scout</title>
+<style>
+  :root {
+    --uco-blue: #002B7F;
+    --uco-blue-dark: #001D57;
+    --uco-gold: #FFD100;
+    --bg: #F5F7FB;
+    --card: #FFFFFF;
+    --text: #1A1F2E;
+    --muted: #5B6478;
+    --border: #DDE3EE;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { background: var(--uco-blue); color: #fff; border-bottom: 6px solid var(--uco-gold); }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+  .brand { padding: 18px 0; }
+  .brand h1 { margin: 0; font-size: 1.5rem; }
+  .brand p { margin: 2px 0 0; opacity: .85; font-size: .9rem; }
+
+  .controls { display: grid; grid-template-columns: 1fr 220px 200px; gap: 12px; padding: 0 0 22px; }
+  .controls input, .controls select {
+    width: 100%; font-size: 1rem; padding: 12px 14px; border-radius: 8px;
+    border: 2px solid transparent; background: #fff; color: var(--text);
+  }
+  .controls input:focus, .controls select:focus { outline: none; border-color: var(--uco-gold); }
+  .search { display: flex; gap: 8px; }
+  .search input { flex: 1; min-width: 0; }
+  .search button { background: var(--uco-gold); color: var(--uco-blue); border: 0; border-radius: 8px; padding: 0 20px; font-size: 1rem; font-weight: 700; cursor: pointer; }
+  .search button:hover { filter: brightness(.95); }
+  .search button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  @media (max-width: 760px) { .controls { grid-template-columns: 1fr; } }
+
+  main { padding: 20px 0 40px; }
+  .watch { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
+  .watch h2 { margin: 0 0 10px; font-size: 1rem; color: var(--uco-blue); }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chip { background: var(--uco-blue); color: #fff; border-radius: 999px; padding: 5px 6px 5px 12px; font-size: .85rem; display: inline-flex; gap: 6px; align-items: center; }
+  .chip button { background: var(--uco-gold); color: var(--uco-blue); border: 0; border-radius: 50%; width: 20px; height: 20px; font-weight: 700; cursor: pointer; line-height: 1; }
+  .add { display: flex; gap: 6px; }
+  .add input { padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: .85rem; }
+  .btn { background: var(--uco-gold); color: var(--uco-blue); border: 0; font-weight: 700; padding: 7px 12px; border-radius: 6px; cursor: pointer; text-decoration: none; display: inline-block; font-size: .95rem; }
+  .btn:hover { filter: brightness(.95); }
+  .btn.ghost { background: transparent; color: var(--uco-blue); border: 2px solid var(--uco-blue); }
+  label.only { font-size: .85rem; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
+
+  .status { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; color: var(--muted); margin: 0 0 12px; font-size: .9rem; }
+  .elsewhere { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -4px 0 14px; font-size: .9rem; color: var(--muted); }
+  .elsewhere a { color: var(--uco-blue); border: 1px solid var(--uco-blue); border-radius: 999px; padding: 3px 10px; text-decoration: none; background: #fff; }
+  .elsewhere a:hover { background: #E6ECF8; }
+  .notice { background: #FFF6CC; border: 1px solid var(--uco-gold); color: var(--uco-blue-dark); border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; font-size: .9rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .job { background: var(--card); border: 1px solid var(--border); border-left: 5px solid var(--uco-blue); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+  .job:hover, .job:focus-visible { border-left-color: var(--uco-gold); outline: none; box-shadow: 0 0 0 2px var(--uco-gold); }
+  .job h3 { margin: 0; font-size: 1.05rem; color: var(--uco-blue); }
+  .job .co { font-weight: 600; }
+  .meta { color: var(--muted); font-size: .85rem; }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { background: #FFF6CC; color: var(--uco-blue-dark); border: 1px solid var(--uco-gold); border-radius: 4px; padding: 2px 8px; font-size: .75rem; font-weight: 600; }
+  .tag.blue { background: #E6ECF8; border-color: var(--uco-blue); }
+  .job .more { margin-top: 6px; font-weight: 700; color: var(--uco-blue); font-size: .9rem; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; grid-column: 1 / -1; }
+  mark { background: var(--uco-gold); color: var(--uco-blue); padding: 0 2px; border-radius: 2px; }
+
+  dialog { border: 0; border-radius: 12px; padding: 0; width: min(760px, calc(100vw - 32px)); max-height: calc(100vh - 48px); box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+  dialog::backdrop { background: rgba(0, 29, 87, .55); }
+  .d-head { background: var(--uco-blue); color: #fff; padding: 18px 20px 14px; border-bottom: 5px solid var(--uco-gold); position: sticky; top: 0; }
+  .d-head h2 { margin: 0 32px 4px 0; font-size: 1.3rem; }
+  .d-head .co { font-weight: 600; opacity: .95; }
+  .d-close { position: absolute; top: 12px; right: 12px; background: var(--uco-gold); color: var(--uco-blue); border: 0; border-radius: 50%; width: 32px; height: 32px; font-size: 1.1rem; font-weight: 700; cursor: pointer; }
+  .d-body { padding: 16px 20px 20px; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .fact { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+  .fact b { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .desc { line-height: 1.55; font-size: .95rem; }
+  .desc h2, .desc h3, .desc h4 { color: var(--uco-blue); font-size: 1rem; margin: 1.1em 0 .4em; }
+  .d-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+  .src { margin-left: auto; color: var(--muted); font-size: .8rem; }
+  .src a { color: var(--uco-blue); }
+  .scout { background: var(--card); border: 2px solid var(--uco-blue); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
+  .scout h2 { margin: 0 0 4px; font-size: 1.05rem; color: var(--uco-blue); }
+  .scout .hint { margin: 0 0 10px; color: var(--muted); font-size: .85rem; }
+  .ask { display: flex; gap: 8px; }
+  .ask input { flex: 1; min-width: 0; padding: 10px 12px; font-size: 1rem; border: 2px solid var(--border); border-radius: 8px; }
+  .ask input:focus { outline: none; border-color: var(--uco-gold); }
+  .ask button:disabled { opacity: .6; cursor: wait; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .examples button { background: #E6ECF8; color: var(--uco-blue); border: 1px solid var(--uco-blue); border-radius: 999px; padding: 4px 10px; font-size: .8rem; cursor: pointer; }
+  .reply { margin: 12px 0 0; line-height: 1.5; }
+  .reply.err { color: #9B1C1C; }
+  .warn { margin: 8px 0 0; font-size: .82rem; color: var(--uco-blue-dark); background: #FFF6CC; border: 1px solid var(--uco-gold); border-radius: 6px; padding: 6px 10px; }
+  .table-wrap { overflow-x: auto; margin-top: 12px; }
+  table.compare { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  table.compare th, table.compare td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.compare thead th { background: var(--uco-blue); color: #fff; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  table.compare tr.company th { background: #FFF6CC; color: var(--uco-blue-dark); border-top: 3px solid var(--uco-gold); font-size: .95rem; }
+  table.compare tr.company .meta { font-weight: 400; margin-left: 8px; }
+  table.compare a { color: var(--uco-blue); font-weight: 600; }
+  table.compare td.none { color: var(--muted); font-style: italic; }
+  footer { text-align: center; color: var(--muted); font-size: .8rem; padding: 20px 0 30px; }
+  footer a { color: var(--uco-blue); }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand">
+      <h1>Job Scout</h1>
+      <p>Open roles in Oklahoma and remote, at the companies you choose</p>
+    </div>
+    <div class="controls">
+      <form class="search" id="searchForm" role="search">
+        <input id="q" type="search" placeholder="Search jobs, companies, or locations…" aria-label="Search jobs">
+        <button type="submit">Search</button>
+      </form>
+      <select id="industry" aria-label="Filter by industry">
+        <option value="">All industries</option>
+      </select>
+      <select id="where" aria-label="Filter by location">
+        <option value="">Oklahoma + Remote</option>
+        <option value="ok">Oklahoma only</option>
+        <option value="remote">Remote only</option>
+      </select>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="scout" aria-labelledby="scoutTitle">
+    <h2 id="scoutTitle">Ask the Scout</h2>
+    <p class="hint">Name two or more companies to watch, then ask about a type of job. The scout finds each company's job board and compares open roles side by side.</p>
+    <form class="ask" id="askForm">
+      <input id="askInput" maxlength="1000" placeholder="e.g. Watch Devon Energy and Paycom, then find HR roles" aria-label="Ask the scout">
+      <button class="btn" type="submit" id="askBtn">Ask</button>
+    </form>
+    <div class="examples" id="examples">
+      <button type="button">Watch Devon Energy, Paycom and BancFirst</button>
+      <button type="button">Show all open jobs at my companies</button>
+      <button type="button">Find HR roles at my companies</button>
+      <button type="button">Find financial analyst jobs in Oklahoma City</button>
+    </div>
+    <div id="scoutOut" aria-live="polite"></div>
+  </section>
+
+  <section class="watch">
+    <h2>My watched companies</h2>
+    <div class="chips" id="chips"></div>
+    <div class="chips" style="margin-top:10px">
+      <form class="add" id="addForm">
+        <input id="newCo" placeholder="Add a company…" aria-label="Add a company">
+        <button class="btn" type="submit">Watch</button>
+      </form>
+      <label class="only"><input type="checkbox" id="onlyWatched"> Only watched companies</label>
+    </div>
+  </section>
+
+  <div id="notice"></div>
+  <div class="status"><span id="count">Loading jobs…</span><span id="updated"></span></div>
+  <div class="elsewhere" id="elsewhere"></div>
+  <div class="grid" id="results"></div>
+</main>
+
+<dialog id="detail" aria-labelledby="dTitle">
+  <div class="d-head">
+    <button class="d-close" id="dClose" aria-label="Close">×</button>
+    <h2 id="dTitle"></h2>
+    <div class="co" id="dCompany"></div>
+  </div>
+  <div class="d-body">
+    <div class="facts" id="dFacts"></div>
+    <div class="desc" id="dDesc"></div>
+    <div class="d-actions">
+      <a class="btn" id="dApply" target="_blank" rel="noopener noreferrer">Apply on employer site →</a>
+      <button class="btn ghost" id="dWatch" type="button"></button>
+      <span class="src" id="dSource"></span>
+    </div>
+  </div>
+</dialog>
+
+<footer><span id="credits">Jobs from <a href="https://www.themuse.com" target="_blank" rel="noopener">The Muse</a> and <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a>. Refreshed every 12 hours.</span><span id="coCredit"></span></footer>
+
+<script>
+  const FALLBACK_INDUSTRIES = [
+    "Aerospace & Defense", "Business & Professional Services", "Consulting", "Education", "Energy",
+    "Finance & Banking", "Government & Public Sector", "Healthcare", "Human Resources", "Manufacturing & Logistics",
+    "Media & Entertainment", "Nonprofit", "Retail & Hospitality", "Technology", "Other"
+  ];
+
+  // Shown only when the live feed can't be reached (e.g. the file is opened directly).
+  const daysAgo = d => new Date(Date.now() - d * 864e5).toISOString();
+  const sample = (title, company, industry, location, remote, d, desc) => ({
+    id: `sample-${title}-${company}`, title, company, industry, location, remote,
+    oklahoma: /, OK/.test(location), posted: daysAgo(d), type: "Full time", level: "", salary: "",
+    category: industry, url: "", source: "Sample data", sourceUrl: "",
+    description: `<p>${desc}</p><h3>What you'll do</h3><ul><li>Partner with cross-functional teams</li><li>Analyze data and present recommendations to leadership</li><li>Own projects from planning through delivery</li></ul><h3>What we're looking for</h3><ul><li>Bachelor's degree; MBA a plus</li><li>Strong communication and problem-solving skills</li></ul>`
+  });
+  const SAMPLE_JOBS = [
+    sample("Financial Analyst", "Devon Energy", "Energy", "Oklahoma City, OK", false, 2, "Support budgeting, forecasting and capital planning for upstream operations."),
+    sample("Data Engineer", "Paycom", "Technology", "Oklahoma City, OK", true, 1, "Build data pipelines that power payroll and HR analytics."),
+    sample("Credit Analyst", "BancFirst", "Finance & Banking", "Edmond, OK", false, 3, "Evaluate commercial loan requests and monitor portfolio risk."),
+    sample("Healthcare Operations Manager", "INTEGRIS Health", "Healthcare", "Oklahoma City, OK", false, 4, "Lead operational improvements across outpatient clinics."),
+    sample("Supply Chain Analyst", "Boeing", "Aerospace & Defense", "Oklahoma City, OK", false, 6, "Optimize parts flow for aircraft maintenance programs."),
+    sample("Management Consultant", "Deloitte", "Consulting", "Remote (US)", true, 2, "Advise clients on strategy and operating-model transformation."),
+    sample("Corporate Strategy Associate", "OG&E", "Energy", "Oklahoma City, OK", false, 1, "Shape long-range strategy for a regional electric utility."),
+    sample("Product Manager", "Paycom", "Technology", "Remote (US)", true, 2, "Own the roadmap for an employee self-service product.")
+  ];
+
+  const $ = id => document.getElementById(id);
+  const q = $("q"), sel = $("industry"), where = $("where"), only = $("onlyWatched"), dlg = $("detail");
+  let JOBS = [];
+  let term = ""; // the search text last submitted with the Search button or Enter
+
+  let watched = ["Devon Energy", "Paycom", "BancFirst"];
+  try { watched = JSON.parse(localStorage.getItem("watched")) || watched; } catch (e) {}
+  // Job boards the scout found for each watched company, keyed by lowercase name.
+  let boards = {};
+  try { boards = JSON.parse(localStorage.getItem("boards")) || {}; } catch (e) {}
+  const save = () => { try { localStorage.setItem("watched", JSON.stringify(watched)); localStorage.setItem("boards", JSON.stringify(boards)); } catch (e) {} };
+  const isWatched = co => watched.some(w => w.toLowerCase() === co.toLowerCase());
+
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  // Searching any word in a group also finds the others (e.g. "HR" finds recruiter and talent roles).
+  const SYNONYMS = [
+    ["human resources", "hr", "hris", "recruiter", "recruiting", "recruitment", "talent", "people operations",
+     "people ops", "people partner", "benefits", "compensation", "payroll", "employee relations", "onboarding", "workforce"],
+    ["finance", "financial", "accounting", "accountant", "controller", "treasury", "bookkeeper", "fp&a"],
+    ["software", "developer", "programmer", "full stack", "frontend", "backend", "software engineer"],
+    ["nurse", "nursing", "rn", "lpn", "registered nurse"],
+    ["marketing", "brand", "seo", "social media", "content", "communications"],
+    ["sales", "account executive", "business development", "account manager"]
+  ];
+  const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Short words (hr, rn) must match whole words so "hr" doesn't hit "three".
+  const wordRe = w => new RegExp((/^\w/.test(w) ? "\\b" : "") + reEsc(w) + (w.length <= 3 && /\w$/.test(w) ? "\\b" : ""), "i");
+
+  // Turn the search text into terms; each term is satisfied by any of its related words.
+  function parseSearch(text) {
+    let rest = " " + text.toLowerCase().replace(/\s+/g, " ") + " ";
+    const phrases = SYNONYMS.flat().filter(w => w.includes(" ")).sort((a, b) => b.length - a.length);
+    const words = [];
+    for (const p of phrases) if (rest.includes(" " + p + " ")) { words.push(p); rest = rest.replace(" " + p + " ", " "); }
+    words.push(...rest.trim().split(" ").filter(Boolean));
+    return words.map(w => {
+      const group = SYNONYMS.find(g => g.some(m => m === w || (w.length >= 4 && m.startsWith(w))));
+      const alts = group ? [...new Set([w, ...group])] : [w];
+      return { word: w, related: !!group, alts, res: alts.map(wordRe) };
+    });
+  }
+  let terms = [];
+
+  const hl = text => {
+    const safe = esc(text);
+    if (!terms.length) return safe;
+    const alts = terms.flatMap(t => t.alts).sort((a, b) => b.length - a.length);
+    const re = new RegExp("\\b(" + alts.map(a => reEsc(esc(a))).join("|") + ")", "ig");
+    return safe.replace(re, "<mark>$1</mark>");
+  };
+  const ago = iso => {
+    if (!iso) return "";
+    const d = Math.max(0, Math.floor((Date.now() - new Date(iso)) / 864e5));
+    return d === 0 ? "today" : `${d}d ago`;
+  };
+  const textOf = html => { const t = document.createElement("div"); t.innerHTML = html || ""; return t.textContent || ""; };
+
+  function fillIndustries(list) {
+    sel.length = 1;
+    list.forEach(i => sel.add(new Option(i, i)));
+  }
+
+  function renderChips() {
+    $("chips").innerHTML = watched.length
+      ? watched.map((c, i) => `<span class="chip">${esc(c)}<button aria-label="Remove ${esc(c)}" data-i="${i}">×</button></span>`).join("")
+      : `<span class="meta">No companies yet. Add one below.</span>`;
+  }
+
+  let visible = [];
+  // Score a job against the search. Each word counts on its own, in any order; title hits rank highest.
+  // Related-word groups only match the job's title, company, location and industry, because
+  // descriptions often mention HR or benefits in passing and feed categories are unreliable.
+  function score(j) {
+    let hits = 0, points = 0;
+    for (const t of terms) {
+      const p = t.res.some(r => r.test(j.title)) ? 3
+        : t.res.some(r => r.test(j._fields)) ? 2
+        : !t.related && t.res.some(r => r.test(j._text)) ? 1 : 0;
+      if (p) { hits++; points += p; }
+    }
+    return { all: hits === terms.length, rank: hits * 10 + points, hits };
+  }
+
+  // LinkedIn, Indeed and ZipRecruiter don't allow other sites to pull their listings,
+  // so we hand the same search over to them in a new tab instead.
+  function renderElsewhere() {
+    const place = where.value === "remote" ? "Remote" : "Oklahoma";
+    const kw = encodeURIComponent(term || "");
+    const loc = encodeURIComponent(place);
+    const links = [
+      ["LinkedIn", `https://www.linkedin.com/jobs/search/?keywords=${kw}&location=${encodeURIComponent(place === "Remote" ? "United States" : "Oklahoma, United States")}${place === "Remote" ? "&f_WT=2" : ""}`],
+      ["Indeed", `https://www.indeed.com/jobs?q=${kw}&l=${loc}`],
+      ["ZipRecruiter", `https://www.ziprecruiter.com/jobs-search?search=${kw}&location=${loc}`]
+    ];
+    $("elsewhere").innerHTML = `<span>Also search${term ? ` "${esc(term)}"` : ""} on:</span>` +
+      links.map(([name, url]) => `<a href="${url}" target="_blank" rel="noopener">${name} ↗</a>`).join("");
+  }
+
+  function render() {
+    renderElsewhere();
+    terms = term ? parseSearch(term) : [];
+    visible = JOBS.filter(j =>
+      (!sel.value || j.industry === sel.value) &&
+      (!where.value || (where.value === "ok" ? j.oklahoma : j.remote)) &&
+      (!only.checked || isWatched(j.company))
+    ).map(j => [j, terms.length ? score(j) : { all: true, rank: 1, hits: 1 }])
+      // Jobs matching every word come first; jobs matching some of the words follow as close matches.
+      .filter(([, s]) => s.hits > 0).sort((a, b) => b[1].rank - a[1].rank);
+    const full = visible.filter(([, s]) => s.all).length, close = visible.length - full;
+    visible = visible.map(([j]) => j);
+
+    const extra = terms.filter(t => t.related).flatMap(t => t.alts.filter(a => a !== t.word)).slice(0, 4);
+    $("count").textContent = `${visible.length} open role${visible.length === 1 ? "" : "s"}` +
+      (sel.value ? ` in ${sel.value}` : "") + (term ? ` for "${term}"` : "") +
+      (term && close ? ` (${full} best match${full === 1 ? "" : "es"}, ${close} close)` : "") +
+      (extra.length ? ` · also searching ${extra.join(", ")}…` : "");
+
+    $("results").innerHTML = visible.length ? visible.map((j, i) => `
+      <button class="job" type="button" data-i="${i}">
+        <span class="tags"><span class="tag">${esc(j.industry)}</span>${j.remote ? '<span class="tag blue">Remote</span>' : ""}${j.oklahoma ? '<span class="tag blue">Oklahoma</span>' : ""}</span>
+        <h3>${hl(j.title)}</h3>
+        <span class="co">${hl(j.company)}</span>
+        <span class="meta">${hl(j.location)}${j.posted ? " · " + ago(j.posted) : ""}</span>
+        <span class="more">View details →</span>
+      </button>`).join("")
+      : `<div class="empty">No jobs found. Try a different search, industry, or location.</div>`;
+  }
+
+  function openDetail(j) {
+    $("dTitle").textContent = j.title;
+    $("dCompany").textContent = j.company;
+    const facts = [
+      ["Location", j.location], ["Work style", j.remote ? (j.oklahoma ? "Remote / Oklahoma" : "Remote") : "On-site / hybrid"],
+      ["Industry", j.industry], ["Job type", j.type], ["Level", j.level], ["Salary", j.salary],
+      ["Category", j.category], ["Posted", j.posted ? new Date(j.posted).toLocaleDateString() + ` (${ago(j.posted)})` : ""]
+    ].filter(([, v]) => v);
+    $("dFacts").innerHTML = facts.map(([k, v]) => `<div class="fact"><b>${esc(k)}</b>${esc(v)}</div>`).join("");
+    // Descriptions are sanitized server-side to simple formatting tags only.
+    $("dDesc").innerHTML = j.description || "<p>No description provided. Open the posting for full details.</p>";
+    const apply = $("dApply");
+    if (j.url) { apply.href = j.url; apply.style.display = ""; } else { apply.removeAttribute("href"); apply.style.display = "none"; }
+    const w = $("dWatch");
+    w.textContent = isWatched(j.company) ? `Watching ${j.company} ✓` : `Watch ${j.company}`;
+    w.onclick = () => {
+      if (!isWatched(j.company)) { watched.push(j.company); save(); renderChips(); render(); }
+      w.textContent = `Watching ${j.company} ✓`;
+    };
+    $("dSource").innerHTML = j.sourceUrl ? `Source: <a href="${esc(j.sourceUrl)}" target="_blank" rel="noopener">${esc(j.source)}</a>` : esc(j.source);
+    dlg.querySelector(".d-body").scrollTop = 0;
+    dlg.showModal();
+  }
+
+  $("results").addEventListener("click", e => {
+    const card = e.target.closest(".job");
+    if (card) openDetail(visible[+card.dataset.i]);
+  });
+  $("dClose").addEventListener("click", () => dlg.close());
+  dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
+
+  $("chips").addEventListener("click", e => {
+    if (e.target.dataset.i !== undefined) {
+      const [gone] = watched.splice(+e.target.dataset.i, 1);
+      delete boards[gone.toLowerCase()];
+      save(); renderChips(); render();
+    }
+  });
+  $("addForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const v = $("newCo").value.trim();
+    if (v && !isWatched(v)) { watched.push(v); save(); renderChips(); render(); }
+    $("newCo").value = "";
+  });
+  $("searchForm").addEventListener("submit", e => {
+    e.preventDefault();
+    term = q.value.trim();
+    render();
+  });
+  // Clearing the box (or its × button) resets the search right away.
+  q.addEventListener("input", () => { if (!q.value && term) { term = ""; render(); } });
+  [sel, where, only].forEach(el => el.addEventListener("input", render));
+
+  // ---------- Ask the Scout ----------
+  const safeUrl = u => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : ""; } catch (e) { return ""; } };
+
+  function renderComparison(results) {
+    if (!results || !results.groups) return "";
+    const rows = results.groups.map(g => {
+      const board = safeUrl(g.careersUrl);
+      const head = `<tr class="company"><th colspan="4">${esc(g.company)}<span class="meta">${g.roles.length} role${g.roles.length === 1 ? "" : "s"}` +
+        `${board ? ` · <a href="${esc(board)}" target="_blank" rel="noopener noreferrer">job board ↗</a>` : ""}${g.via ? ` · via ${esc(g.via)}` : ""}</span></th></tr>`;
+      if (!g.roles.length) return head + `<tr><td colspan="4" class="none">${esc(g.error || "No matching roles found on this board.")}</td></tr>`;
+      return head + g.roles.map(r => {
+        const link = safeUrl(r.url);
+        return `<tr><td>${esc(r.title)}</td><td>${esc(r.location || "—")}</td><td>${esc(r.pay || "Not listed")}</td>` +
+          `<td>${link ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">View posting ↗</a>` : ""}</td></tr>`;
+      }).join("");
+    }).join("");
+    return `<div class="table-wrap"><table class="compare"><thead><tr><th>Job title</th><th>Location</th><th>Pay</th><th>Posting</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  async function askScout(message) {
+    const out = $("scoutOut"), btn = $("askBtn");
+    btn.disabled = true; btn.textContent = "Scouting…";
+    out.innerHTML = `<p class="reply">Searching job boards. This can take up to a minute…</p>`;
+    try {
+      const employers = watched.map(n => boards[n.toLowerCase()] || { name: n });
+      const res = await fetch("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, employers }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (Array.isArray(data.employers)) {
+        watched = data.employers.map(e => e.name);
+        boards = Object.fromEntries(data.employers.map(e => [e.name.toLowerCase(), e]));
+        save(); renderChips(); render();
+        loadCompanyJobs();
+      }
+      const warnings = (data.results && data.results.warnings) || [];
+      out.innerHTML = `<p class="reply">${esc(data.reply || "Done.")}</p>` +
+        warnings.map(w => `<p class="warn">${esc(w)}</p>`).join("") + renderComparison(data.results);
+    } catch (err) {
+      out.innerHTML = `<p class="reply err">The scout couldn't finish: ${esc(err.message)}</p>`;
+    } finally {
+      btn.disabled = false; btn.textContent = "Ask";
+    }
+  }
+
+  $("askForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const m = $("askInput").value.trim();
+    if (m) askScout(m);
+  });
+  $("examples").addEventListener("click", e => {
+    if (e.target.tagName === "BUTTON") { $("askInput").value = e.target.textContent; askScout(e.target.textContent); }
+  });
+
+  let BASE_JOBS = [], COMPANY_JOBS = [];
+  function load(jobs) {
+    BASE_JOBS = jobs;
+    merge();
+  }
+  // Company-site jobs first; skip any feed job whose link we already have from a company site.
+  function merge() {
+    const have = new Set(COMPANY_JOBS.map(j => j.url));
+    JOBS = [...COMPANY_JOBS, ...BASE_JOBS.filter(j => !j.url || !have.has(j.url))]
+      .map(j => ({ ...j, _text: textOf(j.description), _fields: [j.company, j.location, j.industry].join(" | ") }));
+    render();
+  }
+
+  // Jobs straight from the watched companies' own hiring systems (Workday, Greenhouse, Lever, Ashby).
+  async function loadCompanyJobs() {
+    const employers = watched.map(n => boards[n.toLowerCase()]).filter(e => e && (e.careersUrl || e.feed));
+    if (!employers.length) return;
+    try {
+      const res = await fetch("/api/company-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ employers }) });
+      if (!res.ok) return;
+      const data = await res.json();
+      COMPANY_JOBS = data.jobs || [];
+      const names = [...new Set(COMPANY_JOBS.map(j => j.company))];
+      $("coCredit").textContent = names.length ? ` Plus ${COMPANY_JOBS.length} jobs from the career sites of ${names.join(", ")}.` : "";
+      merge();
+    } catch { /* company feeds are a bonus; the main list still works without them */ }
+  }
+
+  async function init() {
+    renderChips();
+    try {
+      const res = await fetch("/api/jobs");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data.jobs || !data.jobs.length) throw new Error("no jobs returned");
+      fillIndustries(data.industries || FALLBACK_INDUSTRIES);
+      // Credit every source that actually returned jobs.
+      const SOURCE_LINKS = { "The Muse": "https://www.themuse.com", "Remotive": "https://remotive.com", "USAJOBS": "https://www.usajobs.gov" };
+      const used = Object.keys(SOURCE_LINKS).filter(n => typeof (data.sources || {})[n] === "number" && data.sources[n] > 0);
+      if (used.length) {
+        const links = used.map(n => `<a href="${SOURCE_LINKS[n]}" target="_blank" rel="noopener">${n}</a>`);
+        $("credits").innerHTML = `Jobs from ${links.length > 1 ? links.slice(0, -1).join(", ") + " and " + links.at(-1) : links[0]}. Refreshed every 12 hours.`;
+      }
+      $("updated").textContent = data.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleString()}` : "";
+      load(data.jobs);
+      loadCompanyJobs();
+    } catch (err) {
+      fillIndustries(FALLBACK_INDUSTRIES);
+      $("notice").innerHTML = `<div class="notice">Live job feed unavailable (${esc(err.message)}). Showing sample jobs.</div>`;
+      load(SAMPLE_JOBS);
+    }
+  }
+  init();
+</script>
+</body>
+</html>
