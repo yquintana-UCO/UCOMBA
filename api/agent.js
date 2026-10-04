@@ -92,8 +92,14 @@ async function runAgent({ message, employers }, deps) {
   return { reply, employers: state.employers, results: state.results };
 }
 
-// POST /api/agent  { message, employers } -> { reply, employers, results }
+// Which keys the server can see (true/false only, never values). Free to call.
+function keyStatus(env = process.env) {
+  return { claude: !!getApiKey(env), tavily: !!env.TAVILY_API_KEY, firecrawl: !!env.FIRECRAWL_API_KEY };
+}
+
+// GET /api/agent -> key status; POST /api/agent { message, employers } -> { reply, employers, results }
 module.exports = async (req, res) => {
+  if (req.method === "GET") return res.status(200).json({ ready: keyStatus() });
   if (req.method !== "POST") return res.status(405).json({ error: "Use POST" });
   const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
   if (!message || message.length > MAX_MESSAGE_CHARS) {
@@ -102,9 +108,19 @@ module.exports = async (req, res) => {
   const key = getApiKey();
   if (!key) return res.status(503).json({ error: "The UCOMBA API key isn't configured on the server." });
   const deps = { anthropic: new Anthropic({ apiKey: key.value }), fetch, env: process.env };
+  const started = Date.now();
   try {
-    res.status(200).json(await runAgent({ message, employers: req.body.employers }, deps));
+    const out = await runAgent({ message, employers: req.body.employers }, deps);
+    // One summary line per request for the Vercel runtime logs (no keys, no message text).
+    console.log("scout", JSON.stringify({
+      ms: Date.now() - started, keys: keyStatus(),
+      employers: out.employers.map(e => ({ name: e.name, board: !!e.careersUrl, ats: e.ats || null })),
+      groups: out.results ? out.results.groups.map(g => ({ company: g.company, roles: g.roles.length, via: g.via, error: g.error || null })) : null,
+      warnings: out.results ? out.results.warnings : []
+    }));
+    res.status(200).json(out);
   } catch (err) {
+    console.error("scout error", err?.constructor?.name, err?.status || "", String(err?.message || err).slice(0, 300));
     if (err instanceof Anthropic.AuthenticationError) return res.status(502).json({ error: "The UCOMBA API key was rejected." });
     if (err instanceof Anthropic.RateLimitError) return res.status(429).json({ error: "Too many requests right now. Try again in a minute." });
     if (err instanceof Anthropic.APIError) return res.status(502).json({ error: `Claude API error (${err.status}).` });

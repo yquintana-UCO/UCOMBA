@@ -122,3 +122,16 @@ test("runAgent wires both tools to the employer list and results", async () => {
   assert.strictEqual(out.employers[0].ats, "greenhouse");
   assert.strictEqual(out.results.groups[0].roles.length, 2);
 });
+
+test("GET /api/agent reports key presence without revealing values", async () => {
+  const handler = require("../api/agent");
+  const saved = { ...process.env };
+  process.env.UCOMBA = "secret-claude"; process.env.TAVILY_API_KEY = "secret-tavily"; delete process.env.FIRECRAWL_API_KEY;
+  let status, body;
+  const res = { status(c) { status = c; return this; }, json(b) { body = b; return this; } };
+  await handler({ method: "GET" }, res);
+  process.env = saved;
+  assert.strictEqual(status, 200);
+  assert.deepStrictEqual(body, { ready: { claude: true, tavily: true, firecrawl: false } });
+  assert.ok(!JSON.stringify(body).includes("secret"));
+});
