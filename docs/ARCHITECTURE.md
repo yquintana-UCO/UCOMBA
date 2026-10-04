@@ -56,7 +56,11 @@ flowchart LR
   Consulting, Nonprofit, Aerospace & Defense, Media & Entertainment.
 - Secondary filters: location / remote, posted-within, "only my watched companies".
 - **Watchlist panel:** add or remove companies.
-- Working prototype: [`web/index.html`](../web/index.html) (open in a browser, no build step).
+- **Location filter:** Oklahoma + Remote (default), Oklahoma only, Remote only.
+- **Job details:** clicking a job opens a panel with location, work style, industry, type,
+  level, salary (when posted), full description, "Apply on employer site" and "Watch company".
+- Working prototype: [`web/index.html`](../web/index.html), backed by the
+  [`/api/jobs`](../api/jobs.js) Vercel function (falls back to sample data when opened locally).
 - Production: Next.js or plain React, hosted on Vercel.
 
 ### 4.2 Backend API
@@ -84,7 +88,8 @@ Implemented as Claude with tools (`fetch_url`, `detect_ats`, `call_connector`,
 `save_jobs`).
 
 **API key:** the agent authenticates with the Claude API key named **"UCO MBA"**,
-supplied through the `UCO_MBA_API_KEY` environment variable (see
+supplied through the `UCOMBA` environment variable (`UCOMBA_API_KEY`, `UCO_MBA_API_KEY`
+and `UCO_MBA` are also accepted) (see
 [`agent/config.py`](../agent/config.py) and [`.env.example`](../.env.example)).
 Locally it lives in a git-ignored `.env` file. In production it lives in the
 hosting provider's secret settings. It is never stored in the code. Model choice: a small, fast model for labeling at volume; a larger
@@ -97,6 +102,8 @@ model only for the hard careers-page cases.
 | Lever | Public JSON: `api.lever.co/v0/postings/{co}` | High |
 | Ashby | Public posting API | High |
 | Workday | Company-specific JSON behind the careers site | Medium |
+| **The Muse** (live now) | Public jobs API, filtered to 15 Oklahoma cities + "Flexible / Remote" | High |
+| **Remotive** (live now) | Public remote-jobs API, kept only when US-eligible; must credit and link back | High |
 | Indeed / ZipRecruiter | Partner APIs (connectors are already available in this workspace) | Medium. Check terms of use |
 | Any other careers page | Fetch HTML → Claude extracts | Lower; most expensive |
 
