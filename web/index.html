@@ -29,6 +29,11 @@
     border: 2px solid transparent; background: #fff; color: var(--text);
   }
   .controls input:focus, .controls select:focus { outline: none; border-color: var(--uco-gold); }
+  .search { display: flex; gap: 8px; }
+  .search input { flex: 1; min-width: 0; }
+  .search button { background: var(--uco-gold); color: var(--uco-blue); border: 0; border-radius: 8px; padding: 0 20px; font-size: 1rem; font-weight: 700; cursor: pointer; }
+  .search button:hover { filter: brightness(.95); }
+  .search button:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
   @media (max-width: 760px) { .controls { grid-template-columns: 1fr; } }
 
   main { padding: 20px 0 40px; }
@@ -86,7 +91,10 @@
       <p>Open roles in Oklahoma and remote, at the companies you choose</p>
     </div>
     <div class="controls">
-      <input id="q" type="search" placeholder="Search jobs, companies, or locations…" aria-label="Search jobs">
+      <form class="search" id="searchForm" role="search">
+        <input id="q" type="search" placeholder="Search jobs, companies, or locations…" aria-label="Search jobs">
+        <button type="submit">Search</button>
+      </form>
       <select id="industry" aria-label="Filter by industry">
         <option value="">All industries</option>
       </select>
@@ -165,6 +173,7 @@
   const $ = id => document.getElementById(id);
   const q = $("q"), sel = $("industry"), where = $("where"), only = $("onlyWatched"), dlg = $("detail");
   let JOBS = [];
+  let term = ""; // the search text last submitted with the Search button or Enter
 
   let watched = ["Devon Energy", "Paycom", "BancFirst"];
   try { watched = JSON.parse(localStorage.getItem("watched")) || watched; } catch (e) {}
@@ -198,7 +207,6 @@
 
   let visible = [];
   function render() {
-    const term = q.value.trim();
     const t = term.toLowerCase();
     visible = JOBS.filter(j =>
       (!sel.value || j.industry === sel.value) &&
@@ -261,7 +269,14 @@
     if (v && !isWatched(v)) { watched.push(v); save(); renderChips(); render(); }
     $("newCo").value = "";
   });
-  [q, sel, where, only].forEach(el => el.addEventListener("input", render));
+  $("searchForm").addEventListener("submit", e => {
+    e.preventDefault();
+    term = q.value.trim();
+    render();
+  });
+  // Clearing the box (or its × button) resets the search right away.
+  q.addEventListener("input", () => { if (!q.value && term) { term = ""; render(); } });
+  [sel, where, only].forEach(el => el.addEventListener("input", render));
 
   function load(jobs) {
     JOBS = jobs.map(j => ({ ...j, _text: textOf(j.description).toLowerCase() }));
