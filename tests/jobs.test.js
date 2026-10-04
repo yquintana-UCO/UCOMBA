@@ -60,3 +60,18 @@ test("fromRemotive rejects remote roles limited to other regions", () => {
   assert.strictEqual(fromRemotive({ ...base, candidate_required_location: "Latin America" }), null);
   assert.ok(fromRemotive({ ...base, candidate_required_location: "North America" }));
 });
+
+test("fetchMuse follows page_count but stops at the page cap", async () => {
+  const calls = [];
+  const fakeFetch = async url => {
+    calls.push(url);
+    if (url.includes("remotive")) return { ok: true, json: async () => ({ jobs: [] }) };
+    const page = Number(new URL(url).searchParams.get("page"));
+    const remote = url.includes("Flexible");
+    return { ok: true, json: async () => ({ page_count: remote ? 1 : 40, results: [{ id: `${remote}-${page}`, name: `Job ${remote}-${page}`, company: { name: "Co" }, locations: [{ name: remote ? "Flexible / Remote" : "Tulsa, OK" }], categories: [], levels: [], contents: "", refs: {} }] }) };
+  };
+  const data = await collectJobs(fakeFetch);
+  assert.strictEqual(calls.filter(u => u.includes("themuse") && !u.includes("Flexible")).length, 15);
+  assert.strictEqual(calls.filter(u => u.includes("Flexible")).length, 1);
+  assert.strictEqual(data.jobs.filter(j => j.oklahoma).length, 15);
+});

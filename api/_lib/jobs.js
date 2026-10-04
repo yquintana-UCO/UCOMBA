@@ -119,13 +119,24 @@ function museUrl(locations, page) {
   return `${MUSE_URL}?${qs}`;
 }
 
-async function fetchMuse(fetchImpl, { okPages = 5, remotePages = 3 } = {}) {
-  const urls = [
-    ...Array.from({ length: okPages }, (_, p) => museUrl(OK_CITIES, p)),
-    ...Array.from({ length: remotePages }, (_, p) => museUrl([MUSE_REMOTE], p))
-  ];
-  const pages = await Promise.allSettled(urls.map(u => getJson(fetchImpl, u)));
-  return pages.flatMap(p => (p.status === "fulfilled" ? p.value.results || [] : []))
+// Fetch page 0, then every remaining page the feed reports (up to maxPages).
+async function fetchMusePages(fetchImpl, locations, maxPages) {
+  const first = await getJson(fetchImpl, museUrl(locations, 0));
+  const total = Math.min(first.page_count || 1, maxPages);
+  const rest = await Promise.allSettled(
+    Array.from({ length: total - 1 }, (_, i) => getJson(fetchImpl, museUrl(locations, i + 1)))
+  );
+  return [first, ...rest.filter(p => p.status === "fulfilled").map(p => p.value)]
+    .flatMap(page => page.results || []);
+}
+
+async function fetchMuse(fetchImpl, { okPages = 15, remotePages = 3 } = {}) {
+  const [ok, remote] = await Promise.allSettled([
+    fetchMusePages(fetchImpl, OK_CITIES, okPages),
+    fetchMusePages(fetchImpl, [MUSE_REMOTE], remotePages)
+  ]);
+  if (ok.status === "rejected" && remote.status === "rejected") throw ok.reason;
+  return [ok, remote].flatMap(r => (r.status === "fulfilled" ? r.value : []))
     .map(fromMuse).filter(Boolean);
 }
 
