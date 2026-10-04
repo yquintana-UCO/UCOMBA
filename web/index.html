@@ -79,6 +79,26 @@
   .d-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
   .src { margin-left: auto; color: var(--muted); font-size: .8rem; }
   .src a { color: var(--uco-blue); }
+  .scout { background: var(--card); border: 2px solid var(--uco-blue); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
+  .scout h2 { margin: 0 0 4px; font-size: 1.05rem; color: var(--uco-blue); }
+  .scout .hint { margin: 0 0 10px; color: var(--muted); font-size: .85rem; }
+  .ask { display: flex; gap: 8px; }
+  .ask input { flex: 1; min-width: 0; padding: 10px 12px; font-size: 1rem; border: 2px solid var(--border); border-radius: 8px; }
+  .ask input:focus { outline: none; border-color: var(--uco-gold); }
+  .ask button:disabled { opacity: .6; cursor: wait; }
+  .examples { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .examples button { background: #E6ECF8; color: var(--uco-blue); border: 1px solid var(--uco-blue); border-radius: 999px; padding: 4px 10px; font-size: .8rem; cursor: pointer; }
+  .reply { margin: 12px 0 0; line-height: 1.5; }
+  .reply.err { color: #9B1C1C; }
+  .warn { margin: 8px 0 0; font-size: .82rem; color: var(--uco-blue-dark); background: #FFF6CC; border: 1px solid var(--uco-gold); border-radius: 6px; padding: 6px 10px; }
+  .table-wrap { overflow-x: auto; margin-top: 12px; }
+  table.compare { width: 100%; border-collapse: collapse; font-size: .9rem; }
+  table.compare th, table.compare td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.compare thead th { background: var(--uco-blue); color: #fff; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+  table.compare tr.company th { background: #FFF6CC; color: var(--uco-blue-dark); border-top: 3px solid var(--uco-gold); font-size: .95rem; }
+  table.compare tr.company .meta { font-weight: 400; margin-left: 8px; }
+  table.compare a { color: var(--uco-blue); font-weight: 600; }
+  table.compare td.none { color: var(--muted); font-style: italic; }
   footer { text-align: center; color: var(--muted); font-size: .8rem; padding: 20px 0 30px; }
   footer a { color: var(--uco-blue); }
 </style>
@@ -108,6 +128,21 @@
 </header>
 
 <main class="wrap">
+  <section class="scout" aria-labelledby="scoutTitle">
+    <h2 id="scoutTitle">Ask the Scout</h2>
+    <p class="hint">Name two or more companies to watch, then ask about a type of job. The scout finds each company's job board and compares open roles side by side.</p>
+    <form class="ask" id="askForm">
+      <input id="askInput" maxlength="1000" placeholder="e.g. Watch Devon Energy and Paycom, then find HR roles" aria-label="Ask the scout">
+      <button class="btn" type="submit" id="askBtn">Ask</button>
+    </form>
+    <div class="examples" id="examples">
+      <button type="button">Watch Devon Energy, Paycom and BancFirst</button>
+      <button type="button">Find HR roles at my companies</button>
+      <button type="button">Find financial analyst jobs in Oklahoma City</button>
+    </div>
+    <div id="scoutOut" aria-live="polite"></div>
+  </section>
+
   <section class="watch">
     <h2>My watched companies</h2>
     <div class="chips" id="chips"></div>
@@ -177,7 +212,10 @@
 
   let watched = ["Devon Energy", "Paycom", "BancFirst"];
   try { watched = JSON.parse(localStorage.getItem("watched")) || watched; } catch (e) {}
-  const save = () => { try { localStorage.setItem("watched", JSON.stringify(watched)); } catch (e) {} };
+  // Job boards the scout found for each watched company, keyed by lowercase name.
+  let boards = {};
+  try { boards = JSON.parse(localStorage.getItem("boards")) || {}; } catch (e) {}
+  const save = () => { try { localStorage.setItem("watched", JSON.stringify(watched)); localStorage.setItem("boards", JSON.stringify(boards)); } catch (e) {} };
   const isWatched = co => watched.some(w => w.toLowerCase() === co.toLowerCase());
 
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -311,7 +349,11 @@
   dlg.addEventListener("click", e => { if (e.target === dlg) dlg.close(); });
 
   $("chips").addEventListener("click", e => {
-    if (e.target.dataset.i !== undefined) { watched.splice(+e.target.dataset.i, 1); save(); renderChips(); render(); }
+    if (e.target.dataset.i !== undefined) {
+      const [gone] = watched.splice(+e.target.dataset.i, 1);
+      delete boards[gone.toLowerCase()];
+      save(); renderChips(); render();
+    }
   });
   $("addForm").addEventListener("submit", e => {
     e.preventDefault();
@@ -327,6 +369,58 @@
   // Clearing the box (or its × button) resets the search right away.
   q.addEventListener("input", () => { if (!q.value && term) { term = ""; render(); } });
   [sel, where, only].forEach(el => el.addEventListener("input", render));
+
+  // ---------- Ask the Scout ----------
+  const safeUrl = u => { try { const x = new URL(u); return /^https?:$/.test(x.protocol) ? x.href : ""; } catch (e) { return ""; } };
+
+  function renderComparison(results) {
+    if (!results || !results.groups) return "";
+    const rows = results.groups.map(g => {
+      const board = safeUrl(g.careersUrl);
+      const head = `<tr class="company"><th colspan="4">${esc(g.company)}<span class="meta">${g.roles.length} role${g.roles.length === 1 ? "" : "s"}` +
+        `${board ? ` · <a href="${esc(board)}" target="_blank" rel="noopener noreferrer">job board ↗</a>` : ""}${g.via ? ` · via ${esc(g.via)}` : ""}</span></th></tr>`;
+      if (!g.roles.length) return head + `<tr><td colspan="4" class="none">${esc(g.error || "No matching roles found on this board.")}</td></tr>`;
+      return head + g.roles.map(r => {
+        const link = safeUrl(r.url);
+        return `<tr><td>${esc(r.title)}</td><td>${esc(r.location || "—")}</td><td>${esc(r.pay || "Not listed")}</td>` +
+          `<td>${link ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">View posting ↗</a>` : ""}</td></tr>`;
+      }).join("");
+    }).join("");
+    return `<div class="table-wrap"><table class="compare"><thead><tr><th>Job title</th><th>Location</th><th>Pay</th><th>Posting</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+  }
+
+  async function askScout(message) {
+    const out = $("scoutOut"), btn = $("askBtn");
+    btn.disabled = true; btn.textContent = "Scouting…";
+    out.innerHTML = `<p class="reply">Searching job boards. This can take up to a minute…</p>`;
+    try {
+      const employers = watched.map(n => boards[n.toLowerCase()] || { name: n });
+      const res = await fetch("/api/agent", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message, employers }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (Array.isArray(data.employers)) {
+        watched = data.employers.map(e => e.name);
+        boards = Object.fromEntries(data.employers.map(e => [e.name.toLowerCase(), e]));
+        save(); renderChips(); render();
+      }
+      const warnings = (data.results && data.results.warnings) || [];
+      out.innerHTML = `<p class="reply">${esc(data.reply || "Done.")}</p>` +
+        warnings.map(w => `<p class="warn">${esc(w)}</p>`).join("") + renderComparison(data.results);
+    } catch (err) {
+      out.innerHTML = `<p class="reply err">The scout couldn't finish: ${esc(err.message)}</p>`;
+    } finally {
+      btn.disabled = false; btn.textContent = "Ask";
+    }
+  }
+
+  $("askForm").addEventListener("submit", e => {
+    e.preventDefault();
+    const m = $("askInput").value.trim();
+    if (m) askScout(m);
+  });
+  $("examples").addEventListener("click", e => {
+    if (e.target.tagName === "BUTTON") { $("askInput").value = e.target.textContent; askScout(e.target.textContent); }
+  });
 
   function load(jobs) {
     JOBS = jobs.map(j => ({ ...j, _text: textOf(j.description), _fields: [j.company, j.location, j.industry].join(" | ") }));

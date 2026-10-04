@@ -160,3 +160,22 @@ users(id, email, alert_frequency, preferred_industries[])
 | Being blocked for scraping | Official APIs, polite rate limits, identifying user-agent |
 | Wrong industry labels | Company-level default industry + user correction button |
 | Stale jobs | `last_seen_at` + auto-close logic |
+
+## 8. "Ask the Scout" agent (live)
+
+The `/api/agent` endpoint runs Claude (`claude-opus-5-5`, key from `UCOMBA`) with two tools:
+
+| Tool | When Claude calls it | What it does |
+|---|---|---|
+| `update_employer_list` | The user names companies to watch or drop | Saves them and finds each company's job board from the name alone with **Tavily**, preferring the employer's own board (Greenhouse, Lever, Ashby, Workday, iCIMS, a careers page) over aggregators like Indeed or LinkedIn |
+| `find_open_roles` | The user asks about a type of job | Searches each saved company's board and returns title, location, pay and a link per posting, grouped by company |
+
+How `find_open_roles` reads a board:
+- **Greenhouse / Lever / Ashby:** reads the public job feed directly. Fast, free, includes pay when posted.
+- **Any other careers site:** **Tavily** searches that company's domain for the role; **Firecrawl** opens each posting and returns clean text; Claude extracts title, location and pay in one structured call per company (pages that aren't a single open posting are dropped).
+
+The page shows the result as a comparison table grouped by company with clickable links. The saved companies and their job boards are kept in the visitor's browser and sent with each request, so the server stays stateless.
+
+Keys (Vercel → jbsct → Environment Variables): `UCOMBA` (required), `TAVILY_API_KEY` (required to find boards), `FIRECRAWL_API_KEY` (needed to read postings on non-ATS careers sites; without it those postings are listed as links only).
+
+Cost guardrails: messages are capped at 1,000 characters, 15 companies, 5 agent turns, 6 postings read per company and 15 rows per company; refusals fall back server-side (`fallbacks: "default"`).
