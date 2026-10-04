@@ -21,7 +21,9 @@ const ATS = [
   { name: "icims", re: /\.icims\.com$/, slug: () => null }
 ];
 // Aggregators repost jobs; we want the employer's own board.
-const AGGREGATORS = /(^|\.)(indeed|linkedin|glassdoor|ziprecruiter|monster|simplyhired|careerbuilder|builtin|wellfound|dice|salary|payscale|comparably|zippia|lensa|jooble|talent\.com|ladders|usajobs)\./i;
+const AGGREGATORS = /(^|\.)(indeed|linkedin|glassdoor|ziprecruiter|monster|simplyhired|careerbuilder|builtin|wellfound|dice|salary|payscale|comparably|zippia|lensa|jooble|talent|ladders|usajobs|jobzmall|jobleads|jobilize|learn4good|whatjobs|adzuna|snagajob|bebee|ihire|careerjet|recruit|wikipedia|cnbc|forbes|bloomberg|reuters|yahoo|nytimes|businessinsider|prnewswire|bizjournals|facebook|instagram|twitter|youtube|reddit)\./i;
+// Bump when board picking changes, so boards saved by older versions are looked up again.
+const BOARD_VERSION = 2;
 
 // Where large employers host individual postings, often on a different domain than their careers page.
 const ATS_DOMAINS = ["myworkdayjobs.com", "icims.com", "ultipro.com", "ukg.net", "taleo.net", "oraclecloud.com",
@@ -31,6 +33,7 @@ const ATS_DOMAINS = ["myworkdayjobs.com", "icims.com", "ultipro.com", "ukg.net",
 const MAX_POSTINGS_TO_READ = 6;
 const MAX_ROWS_PER_COMPANY = 15;
 const MARKDOWN_CHARS_PER_POSTING = 6000;
+const MARKDOWN_CHARS_PER_BOARD = 15000;
 
 class MissingKeyError extends Error {}
 
@@ -55,7 +58,8 @@ async function postJson(fetchImpl, url, body, key, keyName) {
   const res = await fetchImpl(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${cleanKey(key)}` },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(25000)
   });
   const host = new URL(url).hostname;
   if (res.status === 401 || res.status === 403) throw new Error(`${host} rejected ${keyName} (HTTP ${res.status}); check the key's value in Vercel`);
@@ -69,36 +73,56 @@ async function getJson(fetchImpl, url) {
   return res.json();
 }
 
-async function tavilySearch(deps, query, { includeDomains, maxResults = 8 } = {}) {
+async function tavilySearch(deps, query, { includeDomains, maxResults = 8, rawContent = false } = {}) {
   if (!deps.env.TAVILY_API_KEY) throw new MissingKeyError("TAVILY_API_KEY is not set");
   const body = { query, max_results: maxResults, search_depth: "basic" };
+  if (rawContent) body.include_raw_content = "markdown";
   if (includeDomains?.length) body.include_domains = includeDomains;
   const data = await postJson(deps.fetch, TAVILY_URL, body, deps.env.TAVILY_API_KEY, "TAVILY_API_KEY");
   return (data.results || []).filter(r => parseUrl(r.url));
 }
 
-async function firecrawlMarkdown(deps, url) {
+async function firecrawlMarkdown(deps, url, maxChars = MARKDOWN_CHARS_PER_POSTING) {
   if (!deps.env.FIRECRAWL_API_KEY) throw new MissingKeyError("FIRECRAWL_API_KEY is not set");
   const data = await postJson(deps.fetch, FIRECRAWL_URL,
-    { url, formats: ["markdown"], onlyMainContent: true }, deps.env.FIRECRAWL_API_KEY, "FIRECRAWL_API_KEY");
-  return (data.data?.markdown || "").slice(0, MARKDOWN_CHARS_PER_POSTING);
+    { url, formats: ["markdown"], onlyMainContent: true, timeout: 20000 }, deps.env.FIRECRAWL_API_KEY, "FIRECRAWL_API_KEY");
+  return (data.data?.markdown || "").slice(0, maxChars);
 }
 
-// Pick the employer's own job board from search results: hosted ATS first, then a careers page.
-function pickBoard(results) {
-  const own = results.filter(r => !AGGREGATORS.test(parseUrl(r.url).hostname));
-  const ats = own.find(r => detectAts(r.url).ats);
-  if (ats) return ats.url;
-  const careers = own.find(r => /career|jobs|join|opportunit|employment/i.test(r.url));
-  return careers ? careers.url : null;
+const squash = t => (t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const NAME_STOPWORDS = new Set(["the", "inc", "llc", "co", "company", "corp", "corporation", "group"]);
+// The distinctive part of a company name: "Love's Travel Stops" -> "loves", "OG&E" -> "oge".
+const nameKey = name => squash((name || "").split(/\s+/).find(w => !NAME_STOPWORDS.has(w.toLowerCase())) || name);
+
+// How clearly a search result is this company's own job board. Aggregators, news and social sites never count.
+function boardScore(r, name) {
+  const url = parseUrl(r.url);
+  if (!url || AGGREGATORS.test(url.hostname)) return -1;
+  const key = nameKey(name), full = squash(name);
+  let score = 0;
+  if (key) {
+    const labels = url.hostname.toLowerCase().split(".").map(squash);
+    if (labels.some(l => l === key || l === full || (l.startsWith(key) && l.length <= key.length + 4))) score += 4;
+    if (squash(`${r.title} ${r.content}`).includes(key)) score += 2;
+  }
+  if (detectAts(url.href).ats && (!key || squash(url.href).includes(key))) score += 5;
+  if (/career|jobs|join|opportunit|employment/i.test(url.href)) score += 1;
+  return score;
+}
+
+// Pick the employer's own job board from search results: its hosted hiring system or its own careers page.
+function pickBoard(results, name = "") {
+  const best = results.map(r => ({ url: r.url, score: boardScore(r, name) }))
+    .filter(b => b.score >= (name ? 3 : 1)).sort((a, b) => b.score - a.score)[0];
+  return best ? best.url : null;
 }
 
 async function resolveEmployer(deps, name) {
-  const results = await tavilySearch(deps, `${name} careers job openings`, { maxResults: 8 });
-  const board = pickBoard(results);
+  const results = await tavilySearch(deps, `${name} careers job openings`, { maxResults: 10 });
+  const board = pickBoard(results, name);
   if (!board) return { name, careersUrl: null, domain: null, ats: null, atsSlug: null, note: "No job board found" };
   const url = parseUrl(board);
-  return { name, careersUrl: url.href, domain: url.hostname, ...detectAts(url.href) };
+  return { name, careersUrl: url.href, domain: url.hostname, ...detectAts(url.href), v: BOARD_VERSION };
 }
 
 const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
@@ -114,7 +138,7 @@ async function updateEmployerList(deps, current, { add = [], remove = [] }) {
   // Find boards for every company we don't have one for yet, including ones added via the page.
   // Companies whose earlier lookup failed are retried, so a fixed key or outage recovers on its own.
   employers = await Promise.all(employers.map(async e => {
-    if (e.careersUrl) return e;
+    if (e.careersUrl && e.v === BOARD_VERSION) return e;
     try { return await resolveEmployer(deps, e.name); }
     catch (err) {
       errors.push(`${e.name}: ${err.message}`);
@@ -176,70 +200,81 @@ async function rolesFromAshby(deps, e, role, location, related) {
       pay: j.compensation?.compensationTierSummary || "", url: j.jobUrl }));
 }
 
-const PostingSchema = z.object({
-  postings: z.array(z.object({
-    url: z.string(),
-    is_job_posting: z.boolean().describe("false for search pages, category pages, or closed/expired postings"),
+const JobsSchema = z.object({
+  jobs: z.array(z.object({
+    url: z.string().describe("The job's own link as shown on the page, or the page url for a single posting"),
     title: z.string(),
     location: z.string().describe("City, state, or Remote; empty if not stated"),
     pay: z.string().describe("Pay range exactly as stated, e.g. $70,000-$90,000 per year; empty if not stated")
   }))
 });
 
-// Read postings with Firecrawl, then have Claude extract the details for all of them in one call.
+// Have Claude list the open jobs on the pages we read (job lists and single postings), in one call.
 async function extractPostings(deps, company, pages) {
-  const docs = pages.map((p, i) => `<posting index="${i}" url="${p.url}">\n${p.markdown}\n</posting>`).join("\n\n");
+  const docs = pages.map((p, i) => `<page index="${i}" url="${p.url}">\n${p.markdown}\n</page>`).join("\n\n");
   const response = await deps.anthropic.messages.parse({
     model: MODEL,
-    max_tokens: 4000,
-    output_config: { effort: "low", format: zodOutputFormat(PostingSchema) },
+    max_tokens: 8000,
+    output_config: { effort: "low", format: zodOutputFormat(JobsSchema) },
     messages: [{ role: "user", content:
-      `These pages were found on ${company}'s careers site. For each page, report whether it is a single open job posting ` +
-      `and, if so, its job title, location and pay. Copy facts only from the page; leave a field empty when the page doesn't say. ` +
-      `Return the url exactly as given.\n\n${docs}` }]
+      `These pages come from ${company}'s careers site and hiring system. List the open jobs they show, at most 30. ` +
+      `A page may be a single job posting or a list of jobs. Use each job's own link when the page shows one; for a single ` +
+      `posting use the page url. Skip closed or expired jobs, search forms, navigation and other companies' jobs. ` +
+      `Copy facts only from the pages; leave a field empty when the page doesn't say.\n\n${docs}` }]
   });
   if (response.stop_reason === "refusal" || !response.parsed_output) return [];
-  return response.parsed_output.postings.filter(p => p.is_job_posting && pages.some(pg => pg.url === p.url));
+  // Keep only links that really appear in what we read, so no posting is invented.
+  const seenText = pages.map(p => `${p.url} ${p.markdown}`).join(" ");
+  return response.parsed_output.jobs.filter(j => parseUrl(j.url) && j.title && seenText.includes(j.url.replace(/\/$/, "")));
 }
 
-const squash = t => (t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const looksLikePosting = u => /job|position|requisition|opening|details|career.*\/\d|\/\d{4,}/i.test(u);
 
-async function rolesFromCareersSite(deps, e, role, location, warnings, stats) {
+async function rolesFromCareersSite(deps, e, role, location, related, warnings, stats) {
   const query = `${e.name} ${role || ""} jobs ${location || ""}`.replace(/\s+/g, " ").trim();
   const own = e.domain ? e.domain.replace(/^www\./, "") : null;
-  const found = await tavilySearch(deps, query, { includeDomains: own ? [own, ...ATS_DOMAINS] : undefined, maxResults: 15 });
+  const found = await tavilySearch(deps, query, { includeDomains: own ? [own, ...ATS_DOMAINS] : undefined, maxResults: 15, rawContent: true });
   // Results on a shared ATS domain must name this company; results on its own domain always count.
-  const key = squash(e.name.split(/\s+/)[0]);
+  const key = nameKey(e.name);
   const mine = found.filter(r => {
     const host = parseUrl(r.url).hostname;
     if (own && (host === own || host.endsWith(`.${own}`))) return true;
     return squash(`${r.url} ${r.title} ${r.content}`).includes(key);
   });
   const candidates = mine.filter(r => r.url !== e.careersUrl)
-    .sort((a, b) => looksLikePosting(b.url) - looksLikePosting(a.url)).slice(0, MAX_POSTINGS_TO_READ);
+    .sort((a, b) => looksLikePosting(b.url) - looksLikePosting(a.url)).slice(0, MAX_POSTINGS_TO_READ - 1);
   Object.assign(stats, { found: found.length, candidates: candidates.length });
-  if (!candidates.length) return [];
-  if (!deps.env.FIRECRAWL_API_KEY) {
-    warnings.add("FIRECRAWL_API_KEY is not set, so pages from company careers sites are listed without their details.");
-    return candidates.map(r => ({ title: r.title, location: "", pay: "", url: r.url, unverified: true }));
-  }
-  const pages = (await Promise.allSettled(candidates.map(async r => ({ url: r.url, markdown: await firecrawlMarkdown(deps, r.url) }))))
-    .filter(p => p.status === "fulfilled" && p.value.markdown).map(p => p.value);
+  // The job board itself usually lists openings, so read it along with the postings the search found.
+  const toRead = [{ url: e.careersUrl, raw: "", board: true }, ...candidates.map(r => ({ url: r.url, raw: r.raw_content || "" }))];
+  const readErrors = [];
+  const pages = (await Promise.all(toRead.map(async p => {
+    if (p.raw.length > 400) return { url: p.url, markdown: p.raw.slice(0, MARKDOWN_CHARS_PER_POSTING) };
+    if (!deps.env.FIRECRAWL_API_KEY) return null;
+    try { return { url: p.url, markdown: await firecrawlMarkdown(deps, p.url, p.board ? MARKDOWN_CHARS_PER_BOARD : MARKDOWN_CHARS_PER_POSTING) }; }
+    catch (err) { readErrors.push(err.name === "TimeoutError" ? "Firecrawl timed out" : err.message); return null; }
+  }))).filter(p => p && p.markdown);
   stats.read = pages.length;
-  if (!pages.length) return [];
-  const postings = await extractPostings(deps, e.name, pages);
-  stats.postings = postings.length;
-  return postings
-    .filter(p => matchesLocation(p.location, location) || !p.location)
-    .map(p => ({ title: p.title, location: p.location, pay: p.pay, url: p.url }));
+  if (readErrors.length) {
+    stats.readError = readErrors[0];
+    if (!pages.length) warnings.add(`Couldn't open ${e.name}'s job pages: ${readErrors[0]}.`);
+  }
+  if (!pages.length) {
+    if (!deps.env.FIRECRAWL_API_KEY) warnings.add("FIRECRAWL_API_KEY is not set, so pages from company careers sites are listed without their details.");
+    return candidates.filter(r => looksLikePosting(r.url)).map(r => ({ title: r.title, location: "", pay: "", url: r.url, unverified: true }));
+  }
+  const jobs = await extractPostings(deps, e.name, pages);
+  stats.postings = jobs.length;
+  return jobs
+    .filter(j => matchesRole(j.title, role, related))
+    .filter(j => matchesLocation(j.location, location) || !j.location)
+    .map(j => ({ title: j.title, location: j.location, pay: j.pay, url: j.url }));
 }
 
 async function rolesForEmployer(deps, e, role, location, related, warnings, stats = {}) {
   if (e.ats === "greenhouse" && e.atsSlug) return { rows: await rolesFromGreenhouse(deps, e, role, location, related), via: "Greenhouse feed" };
   if (e.ats === "lever" && e.atsSlug) return { rows: await rolesFromLever(deps, e, role, location, related), via: "Lever feed" };
   if (e.ats === "ashby" && e.atsSlug) return { rows: await rolesFromAshby(deps, e, role, location, related), via: "Ashby feed" };
-  return { rows: await rolesFromCareersSite(deps, e, role, location, warnings, stats), via: "Tavily + Firecrawl" };
+  return { rows: await rolesFromCareersSite(deps, e, role, location, related, warnings, stats), via: "Tavily + Firecrawl" };
 }
 
 // "any jobs", "all openings", "general roles" and the like mean every open role.
@@ -271,5 +306,5 @@ async function findOpenRoles(deps, employers, { role = "", location = "", compan
 
 module.exports = {
   updateEmployerList, findOpenRoles, resolveEmployer, detectAts, pickBoard, matchesRole, payFromText,
-  extractPostings, MissingKeyError, MODEL, cleanKey, normalizeRole
+  extractPostings, MissingKeyError, MODEL, cleanKey, normalizeRole, BOARD_VERSION
 };

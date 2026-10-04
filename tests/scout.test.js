@@ -34,12 +34,12 @@ function fakeWeb(calls = []) {
   };
 }
 
-// Claude stand-in for the posting extractor: keeps the real posting, rejects the search page.
+// Claude stand-in for the job extractor: lists the real posting, skips the board and search pages.
 const fakeAnthropic = {
   messages: { parse: async ({ messages }) => {
-    const urls = [...messages[0].content.matchAll(/url="([^"]+)"/g)].map(m => m[1]);
-    return { stop_reason: "end_turn", parsed_output: { postings: urls.map(url => ({
-      url, is_job_posting: !/search/.test(url), title: "HR Business Partner", location: "Oklahoma City, OK", pay: "$85,000 - $105,000 per year" })) } };
+    const urls = [...messages[0].content.matchAll(/url="([^"]+)"/g)].map(m => m[1]).filter(u => /\/job\//.test(u));
+    return { stop_reason: "end_turn", parsed_output: { jobs: urls.map(url => ({
+      url, title: "HR Business Partner", location: "Oklahoma City, OK", pay: "$85,000 - $105,000 per year" })) } };
   } }
 };
 
@@ -184,11 +184,12 @@ test("careers-site search also covers ATS domains and keeps only this company's 
       }
       return { ok: true, status: 200, json: async () => ({ data: { markdown: "Financial Analyst. Oklahoma City, OK." } }) };
     },
-    anthropic: { messages: { parse: async () => ({ stop_reason: "end_turn", parsed_output: { postings: [
-      { url: "https://devonenergy.wd5.myworkdayjobs.com/en-US/Careers/job/Oklahoma-City/Financial-Analyst_R123", is_job_posting: true, title: "Financial Analyst", location: "Oklahoma City, OK", pay: "" }
+    anthropic: { messages: { parse: async () => ({ stop_reason: "end_turn", parsed_output: { jobs: [
+      { url: "https://devonenergy.wd5.myworkdayjobs.com/en-US/Careers/job/Oklahoma-City/Financial-Analyst_R123", title: "Financial Analyst", location: "Oklahoma City, OK", pay: "" },
+      { url: "https://invented.example.com/job/1", title: "Made-up Job", location: "Oklahoma City, OK", pay: "" }
     ] } }) } }
   };
-  const employers = [{ name: "Devon Energy", careersUrl: "https://www.devonenergy.com/careers", domain: "www.devonenergy.com" }];
+  const employers = [{ name: "Devon Energy", careersUrl: "https://www.devonenergy.com/careers", domain: "www.devonenergy.com", v: 2 }];
   const out = await findOpenRoles(deps, employers, { role: "financial analyst", location: "Oklahoma City, OK" });
   assert.ok(tavilyBody.include_domains.includes("devonenergy.com"));
   assert.ok(tavilyBody.include_domains.includes("myworkdayjobs.com"));
@@ -202,4 +203,40 @@ test("general requests like 'any jobs' search every open role", () => {
   for (const r of ["", "any", "any jobs", "all openings", "general roles", "open positions", "Jobs"]) assert.equal(normalizeRole(r), "");
   assert.equal(normalizeRole("financial analyst"), "financial analyst");
   assert.equal(matchesRole("Senior Accountant", ""), true);
+});
+
+test("board picking rejects aggregators, news and look-alike sites", () => {
+  const results = [
+    { url: "https://www.jobzmall.com/devon-energy/jobs", title: "Devon Energy Jobs" },
+    { url: "https://www.cnbc.com/2021/08/31/job-openings.html", title: "Job openings near a high", content: "BancFirst" },
+    { url: "https://www.paycomcenter.com/employment-opportunities", title: "Employment | Paycom Center" },
+    { url: "https://www.paycom.com/careers/", title: "Careers at Paycom" }
+  ];
+  assert.strictEqual(pickBoard(results, "Devon Energy"), null);
+  assert.strictEqual(pickBoard(results, "BancFirst"), null);
+  assert.strictEqual(pickBoard(results, "Paycom"), "https://www.paycom.com/careers/");
+  assert.strictEqual(pickBoard([{ url: "https://www.clr.com/careers", title: "Careers | Continental Resources" }], "Continental Resources"), "https://www.clr.com/careers");
+  assert.strictEqual(pickBoard([{ url: "https://jobs.loves.com/", title: "Jobs" }], "Love's Travel Stops"), "https://jobs.loves.com/");
+});
+
+test("list pages yield every job, invented links are dropped, and read failures are reported", async () => {
+  const board = "https://jobs.oge.com/go/View-All-OG&E-Jobs/9296300";
+  const deps = {
+    env: { TAVILY_API_KEY: "k", FIRECRAWL_API_KEY: "f" },
+    fetch: async url => url.includes("tavily")
+      ? { ok: true, status: 200, json: async () => ({ results: [] }) }
+      : { ok: true, status: 200, json: async () => ({ data: { markdown: "[Accountant](https://jobs.oge.com/job/1) Oklahoma City\n[Lineman](https://jobs.oge.com/job/2) Enid" } }) },
+    anthropic: { messages: { parse: async () => ({ stop_reason: "end_turn", parsed_output: { jobs: [
+      { url: "https://jobs.oge.com/job/1", title: "Accountant", location: "Oklahoma City, OK", pay: "" },
+      { url: "https://jobs.oge.com/job/2", title: "Lineman", location: "Enid, OK", pay: "" },
+      { url: "https://jobs.oge.com/job/999", title: "Not on the page", location: "", pay: "" }] } }) } }
+  };
+  const out = await findOpenRoles(deps, [{ name: "OG&E", careersUrl: board, domain: "jobs.oge.com", v: 2 }], { role: "" });
+  assert.deepStrictEqual(out.groups[0].roles.map(r => r.title), ["Accountant", "Lineman"]);
+
+  const failing = { ...deps, fetch: async url => url.includes("tavily")
+    ? { ok: true, status: 200, json: async () => ({ results: [] }) }
+    : { ok: false, status: 402, json: async () => ({}) } };
+  const bad = await findOpenRoles(failing, [{ name: "OG&E", careersUrl: board, domain: "jobs.oge.com", v: 2 }], { role: "" });
+  assert.match(bad.warnings.join(" "), /Couldn't open OG&E's job pages: api.firecrawl.dev returned HTTP 402/);
 });
