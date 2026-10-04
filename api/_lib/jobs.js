@@ -4,6 +4,9 @@
 
 const MUSE_URL = "https://www.themuse.com/api/public/jobs";
 const REMOTIVE_URL = "https://remotive.com/api/remote-jobs";
+const USAJOBS_URL = "https://data.usajobs.gov/api/search";
+// Federal occupational series 0201 = Human Resources Management.
+const USAJOBS_HR_SERIES = "0201";
 
 const OK_CITIES = [
   "Oklahoma City, OK", "Tulsa, OK", "Norman, OK", "Edmond, OK", "Broken Arrow, OK",
@@ -125,8 +128,52 @@ function fromRemotive(job) {
   };
 }
 
-async function getJson(fetchImpl, url) {
-  const res = await fetchImpl(url, { headers: { "User-Agent": "UCO-Job-Scout/1.0" } });
+const escText = t => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function fromUsaJobs(item) {
+  const d = item.MatchedObjectDescriptor || {};
+  const details = d.UserArea?.Details || {};
+  const okLocs = (d.PositionLocation || [])
+    .filter(l => /oklahoma/i.test(l.CountrySubDivisionCode || "") || isOklahoma(l.LocationName))
+    .map(l => l.LocationName);
+  const remote = details.RemoteIndicator === true || /remote/i.test(d.PositionLocationDisplay || "");
+  if (!remote && okLocs.length === 0) return null;
+  const pay = (d.PositionRemuneration || [])[0];
+  const money = n => `$${Math.round(Number(n)).toLocaleString("en-US")}`;
+  const salary = pay && pay.MinimumRange
+    ? `${money(pay.MinimumRange)}–${money(pay.MaximumRange)} ${pay.Description || ""}`.trim() : "";
+  const agency = d.OrganizationName || d.DepartmentName || "U.S. Federal Government";
+  const category = (d.JobCategory || []).map(c => c.Name).join(", ");
+  const industry = classifyIndustry(category, d.PositionTitle, `${agency} ${d.DepartmentName || ""}`);
+  const duties = (details.MajorDuties || []).filter(Boolean);
+  const description = [
+    details.JobSummary && `<h3>Summary</h3><p>${escText(details.JobSummary)}</p>`,
+    duties.length && `<h3>Duties</h3><ul>${duties.map(x => `<li>${escText(x)}</li>`).join("")}</ul>`,
+    d.QualificationSummary && `<h3>Qualifications</h3><p>${escText(d.QualificationSummary)}</p>`,
+    d.ApplicationCloseDate && `<p><strong>Applications close:</strong> ${escText(new Date(d.ApplicationCloseDate).toDateString())}</p>`
+  ].filter(Boolean).join("");
+  return {
+    id: `usajobs-${d.PositionID || item.MatchedObjectId}`,
+    title: d.PositionTitle || "Federal position",
+    company: agency,
+    location: okLocs.length ? [...new Set(okLocs)].join(" · ") : "Remote (US)",
+    remote,
+    oklahoma: okLocs.length > 0,
+    industry: industry === "Other" ? "Government & Public Sector" : industry,
+    category,
+    level: (d.JobGrade || []).map(g => g.Code).join(", "),
+    type: (d.PositionSchedule || []).map(p => p.Name).join(", "),
+    salary,
+    posted: d.PublicationStartDate || null,
+    url: (d.ApplyURI || [])[0] || d.PositionURI || "",
+    description: trimDescription(sanitizeHtml(description)),
+    source: "USAJOBS",
+    sourceUrl: "https://www.usajobs.gov"
+  };
+}
+
+async function getJson(fetchImpl, url, headers = {}) {
+  const res = await fetchImpl(url, { headers: { "User-Agent": "UCO-Job-Scout/1.0", ...headers } });
   if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
   return res.json();
 }
@@ -171,15 +218,36 @@ async function fetchRemotive(fetchImpl, { limit = 150 } = {}) {
     .map(fromRemotive).filter(Boolean);
 }
 
-async function collectJobs(fetchImpl = fetch) {
-  const [muse, remotive] = await Promise.allSettled([fetchMuse(fetchImpl), fetchRemotive(fetchImpl)]);
-  const sources = {
-    "The Muse": muse.status === "fulfilled" ? muse.value.length : `error: ${muse.reason?.message}`,
-    "Remotive": remotive.status === "fulfilled" ? remotive.value.length : `error: ${remotive.reason?.message}`
-  };
+// USAJOBS needs a free key (https://developer.usajobs.gov) and the email it was registered with.
+// Without both, the source is skipped and the rest of the feed still works.
+async function fetchUsaJobs(fetchImpl, env = process.env) {
+  const key = env.USAJOBS_API_KEY, email = env.USAJOBS_EMAIL;
+  if (!key || !email) return null;
+  const headers = { "Authorization-Key": key, "User-Agent": email };
+  const queries = [
+    new URLSearchParams({ LocationName: "Oklahoma", ResultsPerPage: "500" }),
+    new URLSearchParams({ RemoteIndicator: "True", JobCategoryCode: USAJOBS_HR_SERIES, ResultsPerPage: "250" })
+  ];
+  const results = await Promise.allSettled(queries.map(q => getJson(fetchImpl, `${USAJOBS_URL}?${q}`, headers)));
+  if (results.every(r => r.status === "rejected")) throw results[0].reason;
+  const jobs = results.flatMap(r => (r.status === "fulfilled" ? r.value.SearchResult?.SearchResultItems || [] : []))
+    .map(fromUsaJobs).filter(Boolean);
+  // An Oklahoma job can also come back in the remote-HR query.
+  return [...new Map(jobs.map(j => [j.id, j])).values()];
+}
+
+async function collectJobs(fetchImpl = fetch, env = process.env) {
+  const [muse, remotive, usajobs] = await Promise.allSettled([
+    fetchMuse(fetchImpl), fetchRemotive(fetchImpl), fetchUsaJobs(fetchImpl, env)
+  ]);
+  const count = r => (r.status === "fulfilled" ? r.value.length : `error: ${r.reason?.message}`);
+  const sources = { "The Muse": count(muse), "Remotive": count(remotive) };
+  sources.USAJOBS = usajobs.status === "fulfilled" && usajobs.value === null
+    ? "not configured (set USAJOBS_API_KEY and USAJOBS_EMAIL)" : count(usajobs);
   const all = [
     ...(muse.status === "fulfilled" ? muse.value : []),
-    ...(remotive.status === "fulfilled" ? remotive.value : [])
+    ...(remotive.status === "fulfilled" ? remotive.value : []),
+    ...(usajobs.status === "fulfilled" && usajobs.value ? usajobs.value : [])
   ];
   // Same role posted on both feeds: keep the first one.
   const seen = new Set();
@@ -192,4 +260,4 @@ async function collectJobs(fetchImpl = fetch) {
   return { jobs, sources, industries: INDUSTRIES, updatedAt: new Date().toISOString() };
 }
 
-module.exports = { collectJobs, classifyIndustry, sanitizeHtml, trimDescription, fromMuse, fromRemotive, INDUSTRIES, OK_CITIES };
+module.exports = { collectJobs, classifyIndustry, sanitizeHtml, trimDescription, fromMuse, fromRemotive, fromUsaJobs, INDUSTRIES, OK_CITIES };

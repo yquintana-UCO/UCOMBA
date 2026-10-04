@@ -107,6 +107,7 @@ model only for the hard careers-page cases.
 | Workday | Company-specific JSON behind the careers site | Medium |
 | **The Muse** (live now) | Public jobs API, filtered to 15 Oklahoma cities + "Flexible / Remote" | High |
 | **Remotive** (live now) | Public remote-jobs API, kept only when US-eligible; must credit and link back | High |
+| **USAJOBS** (ready; needs key) | Official federal jobs API: everything located in Oklahoma plus remote HR (series 0201). Includes salary ranges. Turns on when `USAJOBS_API_KEY` and `USAJOBS_EMAIL` are set | High |
 | Indeed / ZipRecruiter | Partner APIs (connectors are already available in this workspace) | Medium. Check terms of use |
 | Any other careers page | Fetch HTML → Claude extracts | Lower; most expensive |
 

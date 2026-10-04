@@ -108,3 +108,48 @@ test("trimDescription keeps long descriptions under the cap at a tag boundary", 
   assert.match(out, /Description shortened/);
   assert.strictEqual(trimDescription("<p>short</p>"), "<p>short</p>");
 });
+
+const usaItem = (over = {}) => ({ MatchedObjectId: "1", MatchedObjectDescriptor: {
+  PositionID: "AF-123", PositionTitle: "Human Resources Specialist", OrganizationName: "Air Force Materiel Command",
+  DepartmentName: "Department of the Air Force", PositionURI: "https://www.usajobs.gov/job/1", ApplyURI: ["https://www.usajobs.gov/job/1/apply"],
+  PositionLocation: [{ LocationName: "Tinker AFB, Oklahoma", CountrySubDivisionCode: "Oklahoma" }],
+  JobCategory: [{ Name: "Human Resources Management", Code: "0201" }], JobGrade: [{ Code: "GS" }],
+  PositionRemuneration: [{ MinimumRange: "61111", MaximumRange: "79443", Description: "Per Year" }],
+  PositionSchedule: [{ Name: "Full-time" }], PublicationStartDate: "2026-10-01",
+  QualificationSummary: "Specialized experience <b>required</b>.",
+  UserArea: { Details: { JobSummary: "Support civilian personnel.", MajorDuties: ["Advise managers", "Process actions"], RemoteIndicator: false } },
+  ...over } });
+
+test("fromUsaJobs maps federal jobs, keeps Oklahoma or remote, escapes text", () => {
+  const { fromUsaJobs } = require("../api/_lib/jobs");
+  const j = fromUsaJobs(usaItem());
+  assert.strictEqual(j.industry, "Human Resources");
+  assert.strictEqual(j.location, "Tinker AFB, Oklahoma");
+  assert.ok(j.oklahoma && !j.remote);
+  assert.strictEqual(j.salary, "$61,111–$79,443 Per Year");
+  assert.strictEqual(j.url, "https://www.usajobs.gov/job/1/apply");
+  assert.match(j.description, /<li>Advise managers<\/li>/);
+  assert.ok(!j.description.includes("<b>"), "plain-text fields must be escaped, not rendered");
+  assert.strictEqual(fromUsaJobs(usaItem({ PositionLocation: [{ LocationName: "Denver, Colorado", CountrySubDivisionCode: "Colorado" }] })), null);
+  const other = fromUsaJobs(usaItem({ PositionTitle: "Park Ranger", OrganizationName: "National Park Service", DepartmentName: "Department of the Interior", JobCategory: [] }));
+  assert.strictEqual(other.industry, "Government & Public Sector");
+});
+
+test("USAJOBS is skipped without a key and called with key headers when set", async () => {
+  const seen = [];
+  const fakeFetch = async (url, opts) => {
+    seen.push({ url, headers: opts.headers });
+    if (url.includes("usajobs")) return { ok: true, json: async () => ({ SearchResult: { SearchResultItems: [usaItem()] } }) };
+    if (url.includes("remotive")) return { ok: true, json: async () => ({ jobs: [] }) };
+    return { ok: true, json: async () => ({ page_count: 1, results: [] }) };
+  };
+  const off = await collectJobs(fakeFetch, {});
+  assert.match(off.sources.USAJOBS, /not configured/);
+  assert.ok(!seen.some(s => s.url.includes("usajobs")));
+  const on = await collectJobs(fakeFetch, { USAJOBS_API_KEY: "k", USAJOBS_EMAIL: "me@example.edu" });
+  const call = seen.find(s => s.url.includes("usajobs"));
+  assert.strictEqual(call.headers["Authorization-Key"], "k");
+  assert.strictEqual(call.headers["User-Agent"], "me@example.edu");
+  assert.strictEqual(on.sources.USAJOBS, 1); // the two queries return the same job; deduped
+  assert.strictEqual(on.jobs.length, 1);
+});

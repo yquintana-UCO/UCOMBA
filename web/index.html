@@ -142,7 +142,7 @@
   </div>
 </dialog>
 
-<footer>Jobs from <a href="https://www.themuse.com" target="_blank" rel="noopener">The Muse</a> and <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a>. Refreshed every 12 hours.</footer>
+<footer id="credits">Jobs from <a href="https://www.themuse.com" target="_blank" rel="noopener">The Muse</a> and <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a>. Refreshed every 12 hours.</footer>
 
 <script>
   const FALLBACK_INDUSTRIES = [
@@ -341,6 +341,13 @@
       const data = await res.json();
       if (!data.jobs || !data.jobs.length) throw new Error("no jobs returned");
       fillIndustries(data.industries || FALLBACK_INDUSTRIES);
+      // Credit every source that actually returned jobs.
+      const SOURCE_LINKS = { "The Muse": "https://www.themuse.com", "Remotive": "https://remotive.com", "USAJOBS": "https://www.usajobs.gov" };
+      const used = Object.keys(SOURCE_LINKS).filter(n => typeof (data.sources || {})[n] === "number" && data.sources[n] > 0);
+      if (used.length) {
+        const links = used.map(n => `<a href="${SOURCE_LINKS[n]}" target="_blank" rel="noopener">${n}</a>`);
+        $("credits").innerHTML = `Jobs from ${links.length > 1 ? links.slice(0, -1).join(", ") + " and " + links.at(-1) : links[0]}. Refreshed every 12 hours.`;
+      }
       $("updated").textContent = data.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleString()}` : "";
       load(data.jobs);
     } catch (err) {
