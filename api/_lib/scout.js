@@ -23,6 +23,11 @@ const ATS = [
 // Aggregators repost jobs; we want the employer's own board.
 const AGGREGATORS = /(^|\.)(indeed|linkedin|glassdoor|ziprecruiter|monster|simplyhired|careerbuilder|builtin|wellfound|dice|salary|payscale|comparably|zippia|lensa|jooble|talent\.com|ladders|usajobs)\./i;
 
+// Where large employers host individual postings, often on a different domain than their careers page.
+const ATS_DOMAINS = ["myworkdayjobs.com", "icims.com", "ultipro.com", "ukg.net", "taleo.net", "oraclecloud.com",
+  "successfactors.com", "greenhouse.io", "lever.co", "ashbyhq.com", "smartrecruiters.com", "paycomonline.net",
+  "adp.com", "dayforcehcm.com", "jobvite.com", "applytojob.com", "paylocity.com", "bamboohr.com", "workable.com"];
+
 const MAX_POSTINGS_TO_READ = 6;
 const MAX_ROWS_PER_COMPANY = 15;
 const MARKDOWN_CHARS_PER_POSTING = 6000;
@@ -130,7 +135,9 @@ function matchesRole(text, role, related = []) {
   if (related.some(r => hay.includes(r.toLowerCase()))) return true;
   return want.every(w => hay.includes(w) || hay.includes(w.replace(/s$/, "")));
 }
-const matchesLocation = (loc, location) => !location || (loc || "").toLowerCase().includes(location.toLowerCase())
+// "Oklahoma City" matches "Oklahoma City, OK", and "Oklahoma City, OK" matches "Oklahoma City, Oklahoma".
+const cityOf = s => (s || "").toLowerCase().split(",")[0].trim();
+const matchesLocation = (loc, location) => !location || (loc || "").toLowerCase().includes(cityOf(location))
   || /remote/i.test(loc || "") && /remote/i.test(location);
 
 const money = n => `$${Math.round(Number(n)).toLocaleString("en-US")}`;
@@ -195,10 +202,23 @@ async function extractPostings(deps, company, pages) {
   return response.parsed_output.postings.filter(p => p.is_job_posting && pages.some(pg => pg.url === p.url));
 }
 
-async function rolesFromCareersSite(deps, e, role, location, warnings) {
-  const query = `${role} job ${location || ""} ${e.name}`.replace(/\s+/g, " ").trim();
-  const found = await tavilySearch(deps, query, { includeDomains: e.domain ? [e.domain.replace(/^www\./, "")] : undefined, maxResults: 10 });
-  const candidates = found.filter(r => r.url !== e.careersUrl).slice(0, MAX_POSTINGS_TO_READ);
+const squash = t => (t || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+const looksLikePosting = u => /job|position|requisition|opening|details|career.*\/\d|\/\d{4,}/i.test(u);
+
+async function rolesFromCareersSite(deps, e, role, location, warnings, stats) {
+  const query = `${e.name} ${role} job ${location || ""}`.replace(/\s+/g, " ").trim();
+  const own = e.domain ? e.domain.replace(/^www\./, "") : null;
+  const found = await tavilySearch(deps, query, { includeDomains: own ? [own, ...ATS_DOMAINS] : undefined, maxResults: 15 });
+  // Results on a shared ATS domain must name this company; results on its own domain always count.
+  const key = squash(e.name.split(/\s+/)[0]);
+  const mine = found.filter(r => {
+    const host = parseUrl(r.url).hostname;
+    if (own && (host === own || host.endsWith(`.${own}`))) return true;
+    return squash(`${r.url} ${r.title} ${r.content}`).includes(key);
+  });
+  const candidates = mine.filter(r => r.url !== e.careersUrl)
+    .sort((a, b) => looksLikePosting(b.url) - looksLikePosting(a.url)).slice(0, MAX_POSTINGS_TO_READ);
+  Object.assign(stats, { found: found.length, candidates: candidates.length });
   if (!candidates.length) return [];
   if (!deps.env.FIRECRAWL_API_KEY) {
     warnings.add("FIRECRAWL_API_KEY is not set, so pages from company careers sites are listed without their details.");
@@ -206,17 +226,20 @@ async function rolesFromCareersSite(deps, e, role, location, warnings) {
   }
   const pages = (await Promise.allSettled(candidates.map(async r => ({ url: r.url, markdown: await firecrawlMarkdown(deps, r.url) }))))
     .filter(p => p.status === "fulfilled" && p.value.markdown).map(p => p.value);
+  stats.read = pages.length;
   if (!pages.length) return [];
-  return (await extractPostings(deps, e.name, pages))
+  const postings = await extractPostings(deps, e.name, pages);
+  stats.postings = postings.length;
+  return postings
     .filter(p => matchesLocation(p.location, location) || !p.location)
     .map(p => ({ title: p.title, location: p.location, pay: p.pay, url: p.url }));
 }
 
-async function rolesForEmployer(deps, e, role, location, related, warnings) {
+async function rolesForEmployer(deps, e, role, location, related, warnings, stats = {}) {
   if (e.ats === "greenhouse" && e.atsSlug) return { rows: await rolesFromGreenhouse(deps, e, role, location, related), via: "Greenhouse feed" };
   if (e.ats === "lever" && e.atsSlug) return { rows: await rolesFromLever(deps, e, role, location, related), via: "Lever feed" };
   if (e.ats === "ashby" && e.atsSlug) return { rows: await rolesFromAshby(deps, e, role, location, related), via: "Ashby feed" };
-  return { rows: await rolesFromCareersSite(deps, e, role, location, warnings), via: "Tavily + Firecrawl" };
+  return { rows: await rolesFromCareersSite(deps, e, role, location, warnings, stats), via: "Tavily + Firecrawl" };
 }
 
 async function findOpenRoles(deps, employers, { role, location = "", companies = [], related_terms = [] }) {
@@ -228,10 +251,11 @@ async function findOpenRoles(deps, employers, { role, location = "", companies =
   const groups = await Promise.all(targets.map(async e => {
     if (!e.careersUrl) return { company: e.name, careersUrl: null, via: "", roles: [], error: e.note || "No job board found yet" };
     try {
-      const { rows, via } = await rolesForEmployer(deps, e, role, location, related_terms, warnings);
+      const stats = {};
+      const { rows, via } = await rolesForEmployer(deps, e, role, location, related_terms, warnings, stats);
       const seen = new Set();
       const roles = rows.filter(r => parseUrl(r.url) && !seen.has(r.url) && seen.add(r.url)).slice(0, MAX_ROWS_PER_COMPANY);
-      return { company: e.name, careersUrl: e.careersUrl, via, roles };
+      return { company: e.name, careersUrl: e.careersUrl, via, roles, stats };
     } catch (err) {
       if (err instanceof MissingKeyError) warnings.add(`${err.message}, so ${e.name}'s careers site couldn't be searched.`);
       return { company: e.name, careersUrl: e.careersUrl, via: "", roles: [], error: err instanceof MissingKeyError ? "Search key missing" : "Couldn't read this job board" };

@@ -169,3 +169,30 @@ test("companies whose earlier lookup failed are looked up again", async () => {
   assert.equal(employers[0].careersUrl, "https://boards.greenhouse.io/acme");
   assert.equal(employers[0].ats, "greenhouse");
 });
+
+test("careers-site search also covers ATS domains and keeps only this company's postings", async () => {
+  let tavilyBody;
+  const deps = {
+    env: { TAVILY_API_KEY: "k", FIRECRAWL_API_KEY: "f" },
+    fetch: async (url, opts) => {
+      if (url.includes("tavily")) {
+        tavilyBody = JSON.parse(opts.body);
+        return { ok: true, status: 200, json: async () => ({ results: [
+          { url: "https://devonenergy.wd5.myworkdayjobs.com/en-US/Careers/job/Oklahoma-City/Financial-Analyst_R123", title: "Financial Analyst - Devon Energy", content: "" },
+          { url: "https://otherco.wd1.myworkdayjobs.com/job/Tulsa/Analyst_R9", title: "Analyst - OtherCo", content: "" }
+        ] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ data: { markdown: "Financial Analyst. Oklahoma City, OK." } }) };
+    },
+    anthropic: { messages: { parse: async () => ({ stop_reason: "end_turn", parsed_output: { postings: [
+      { url: "https://devonenergy.wd5.myworkdayjobs.com/en-US/Careers/job/Oklahoma-City/Financial-Analyst_R123", is_job_posting: true, title: "Financial Analyst", location: "Oklahoma City, OK", pay: "" }
+    ] } }) } }
+  };
+  const employers = [{ name: "Devon Energy", careersUrl: "https://www.devonenergy.com/careers", domain: "www.devonenergy.com" }];
+  const out = await findOpenRoles(deps, employers, { role: "financial analyst", location: "Oklahoma City, OK" });
+  assert.ok(tavilyBody.include_domains.includes("devonenergy.com"));
+  assert.ok(tavilyBody.include_domains.includes("myworkdayjobs.com"));
+  assert.equal(out.groups[0].roles.length, 1);
+  assert.equal(out.groups[0].roles[0].title, "Financial Analyst");
+  assert.equal(out.groups[0].stats.candidates, 1);
+});

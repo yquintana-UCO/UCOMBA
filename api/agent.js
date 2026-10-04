@@ -116,7 +116,7 @@ module.exports = async (req, res) => {
     console.log("scout", JSON.stringify({
       ms: Date.now() - started, keys: keyStatus(),
       employers: out.employers.map(e => ({ name: e.name, board: !!e.careersUrl, ats: e.ats || null })),
-      groups: out.results ? out.results.groups.map(g => ({ company: g.company, roles: g.roles.length, via: g.via, error: g.error || null })) : null,
+      groups: out.results ? out.results.groups.map(g => ({ company: g.company, board: g.careersUrl, roles: g.roles.length, via: g.via, stats: g.stats, error: g.error || null })) : null,
       warnings: out.results ? out.results.warnings : [],
       lookupErrors: out.lookupErrors.slice(0, 3)
     }));
