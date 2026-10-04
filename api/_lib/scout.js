@@ -68,7 +68,7 @@ async function postJson(fetchImpl, url, body, key, keyName) {
 }
 
 async function getJson(fetchImpl, url) {
-  const res = await fetchImpl(url, { headers: { "User-Agent": "UCO-Job-Scout/1.0" } });
+  const res = await fetchImpl(url, { headers: { "User-Agent": "UCO-Job-Scout/1.0" }, signal: AbortSignal.timeout(20000) });
   if (!res.ok) throw new Error(`${new URL(url).hostname} returned HTTP ${res.status}`);
   return res.json();
 }
@@ -209,16 +209,26 @@ function workdaySite(href) {
   return site ? { origin: url.origin, tenant: host[1], site } : null;
 }
 
-async function rolesFromWorkday(deps, wd, role, location, related) {
+async function workdayPage(deps, wd, searchText, offset) {
   const res = await deps.fetch(`${wd.origin}/wday/cxs/${wd.tenant}/${wd.site}/jobs`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json", "User-Agent": "UCO-Job-Scout/1.0" },
-    body: JSON.stringify({ appliedFacets: {}, limit: 20, offset: 0, searchText: role || "" }),
+    body: JSON.stringify({ appliedFacets: {}, limit: 20, offset, searchText }),
     signal: AbortSignal.timeout(20000)
   });
   if (!res.ok) throw new Error(`${new URL(wd.origin).hostname} returned HTTP ${res.status}`);
-  const data = await res.json();
-  return (data.jobPostings || [])
+  return (await res.json()).jobPostings || [];
+}
+
+// Workday returns at most 20 jobs per request; pages > 1 reads further.
+async function rolesFromWorkday(deps, wd, role, location, related, pages = 1) {
+  let postings = [];
+  for (let page = 0; page < pages; page++) {
+    const batch = await workdayPage(deps, wd, role || "", page * 20);
+    postings = postings.concat(batch);
+    if (batch.length < 20) break;
+  }
+  return postings
     .filter(j => j.title && j.externalPath)
     .filter(j => matchesRole(j.title, role, related) || !!role) // Workday already searched for the role
     .filter(j => matchesLocation(j.locationsText, location) || /locations/i.test(j.locationsText || ""))
@@ -272,6 +282,7 @@ async function rolesFromCareersSite(deps, e, role, location, related, warnings, 
   const wd = mine.map(r => workdaySite(r.url)).find(Boolean);
   if (wd) {
     stats.via = "Workday feed";
+    e.feed = `${wd.origin}/${wd.site}`; // remembered so the main job list can read this feed too
     try { return await rolesFromWorkday(deps, wd, role, location, related); }
     catch (err) { stats.workdayError = err.message; }
   }
@@ -305,7 +316,7 @@ async function rolesFromCareersSite(deps, e, role, location, related, warnings, 
 }
 
 async function rolesForEmployer(deps, e, role, location, related, warnings, stats = {}) {
-  const wd = workdaySite(e.careersUrl);
+  const wd = workdaySite(e.feed) || workdaySite(e.careersUrl);
   if (wd) return { rows: await rolesFromWorkday(deps, wd, role, location, related), via: "Workday feed" };
   if (e.ats === "greenhouse" && e.atsSlug) return { rows: await rolesFromGreenhouse(deps, e, role, location, related), via: "Greenhouse feed" };
   if (e.ats === "lever" && e.atsSlug) return { rows: await rolesFromLever(deps, e, role, location, related), via: "Lever feed" };
@@ -343,5 +354,6 @@ async function findOpenRoles(deps, employers, { role = "", location = "", compan
 
 module.exports = {
   updateEmployerList, findOpenRoles, resolveEmployer, detectAts, pickBoard, matchesRole, payFromText,
-  extractPostings, MissingKeyError, MODEL, cleanKey, normalizeRole, BOARD_VERSION, workdaySite
+  extractPostings, MissingKeyError, MODEL, cleanKey, normalizeRole, BOARD_VERSION, workdaySite,
+  rolesFromWorkday, rolesFromGreenhouse, rolesFromLever, rolesFromAshby
 };

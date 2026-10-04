@@ -50,6 +50,9 @@
   label.only { font-size: .85rem; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; margin-left: auto; }
 
   .status { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; color: var(--muted); margin: 0 0 12px; font-size: .9rem; }
+  .elsewhere { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -4px 0 14px; font-size: .9rem; color: var(--muted); }
+  .elsewhere a { color: var(--uco-blue); border: 1px solid var(--uco-blue); border-radius: 999px; padding: 3px 10px; text-decoration: none; background: #fff; }
+  .elsewhere a:hover { background: #E6ECF8; }
   .notice { background: #FFF6CC; border: 1px solid var(--uco-gold); color: var(--uco-blue-dark); border-radius: 8px; padding: 10px 12px; margin-bottom: 14px; font-size: .9rem; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
   .job { background: var(--card); border: 1px solid var(--border); border-left: 5px solid var(--uco-blue); border-radius: 10px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; text-align: left; font: inherit; color: inherit; }
@@ -158,6 +161,7 @@
 
   <div id="notice"></div>
   <div class="status"><span id="count">Loading jobs…</span><span id="updated"></span></div>
+  <div class="elsewhere" id="elsewhere"></div>
   <div class="grid" id="results"></div>
 </main>
 
@@ -178,7 +182,7 @@
   </div>
 </dialog>
 
-<footer id="credits">Jobs from <a href="https://www.themuse.com" target="_blank" rel="noopener">The Muse</a> and <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a>. Refreshed every 12 hours.</footer>
+<footer><span id="credits">Jobs from <a href="https://www.themuse.com" target="_blank" rel="noopener">The Muse</a> and <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a>. Refreshed every 12 hours.</span><span id="coCredit"></span></footer>
 
 <script>
   const FALLBACK_INDUSTRIES = [
@@ -289,7 +293,23 @@
     return { all: hits === terms.length, rank: hits * 10 + points, hits };
   }
 
+  // LinkedIn, Indeed and ZipRecruiter don't allow other sites to pull their listings,
+  // so we hand the same search over to them in a new tab instead.
+  function renderElsewhere() {
+    const place = where.value === "remote" ? "Remote" : "Oklahoma";
+    const kw = encodeURIComponent(term || "");
+    const loc = encodeURIComponent(place);
+    const links = [
+      ["LinkedIn", `https://www.linkedin.com/jobs/search/?keywords=${kw}&location=${encodeURIComponent(place === "Remote" ? "United States" : "Oklahoma, United States")}${place === "Remote" ? "&f_WT=2" : ""}`],
+      ["Indeed", `https://www.indeed.com/jobs?q=${kw}&l=${loc}`],
+      ["ZipRecruiter", `https://www.ziprecruiter.com/jobs-search?search=${kw}&location=${loc}`]
+    ];
+    $("elsewhere").innerHTML = `<span>Also search${term ? ` "${esc(term)}"` : ""} on:</span>` +
+      links.map(([name, url]) => `<a href="${url}" target="_blank" rel="noopener">${name} ↗</a>`).join("");
+  }
+
   function render() {
+    renderElsewhere();
     terms = term ? parseSearch(term) : [];
     visible = JOBS.filter(j =>
       (!sel.value || j.industry === sel.value) &&
@@ -403,6 +423,7 @@
         watched = data.employers.map(e => e.name);
         boards = Object.fromEntries(data.employers.map(e => [e.name.toLowerCase(), e]));
         save(); renderChips(); render();
+        loadCompanyJobs();
       }
       const warnings = (data.results && data.results.warnings) || [];
       out.innerHTML = `<p class="reply">${esc(data.reply || "Done.")}</p>` +
@@ -423,9 +444,32 @@
     if (e.target.tagName === "BUTTON") { $("askInput").value = e.target.textContent; askScout(e.target.textContent); }
   });
 
+  let BASE_JOBS = [], COMPANY_JOBS = [];
   function load(jobs) {
-    JOBS = jobs.map(j => ({ ...j, _text: textOf(j.description), _fields: [j.company, j.location, j.industry].join(" | ") }));
+    BASE_JOBS = jobs;
+    merge();
+  }
+  // Company-site jobs first; skip any feed job whose link we already have from a company site.
+  function merge() {
+    const have = new Set(COMPANY_JOBS.map(j => j.url));
+    JOBS = [...COMPANY_JOBS, ...BASE_JOBS.filter(j => !j.url || !have.has(j.url))]
+      .map(j => ({ ...j, _text: textOf(j.description), _fields: [j.company, j.location, j.industry].join(" | ") }));
     render();
+  }
+
+  // Jobs straight from the watched companies' own hiring systems (Workday, Greenhouse, Lever, Ashby).
+  async function loadCompanyJobs() {
+    const employers = watched.map(n => boards[n.toLowerCase()]).filter(e => e && (e.careersUrl || e.feed));
+    if (!employers.length) return;
+    try {
+      const res = await fetch("/api/company-jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ employers }) });
+      if (!res.ok) return;
+      const data = await res.json();
+      COMPANY_JOBS = data.jobs || [];
+      const names = [...new Set(COMPANY_JOBS.map(j => j.company))];
+      $("coCredit").textContent = names.length ? ` Plus ${COMPANY_JOBS.length} jobs from the career sites of ${names.join(", ")}.` : "";
+      merge();
+    } catch { /* company feeds are a bonus; the main list still works without them */ }
   }
 
   async function init() {
@@ -445,6 +489,7 @@
       }
       $("updated").textContent = data.updatedAt ? `Updated ${new Date(data.updatedAt).toLocaleString()}` : "";
       load(data.jobs);
+      loadCompanyJobs();
     } catch (err) {
       fillIndustries(FALLBACK_INDUSTRIES);
       $("notice").innerHTML = `<div class="notice">Live job feed unavailable (${esc(err.message)}). Showing sample jobs.</div>`;

@@ -24,7 +24,7 @@ function cleanEmployers(list) {
   const str = v => (typeof v === "string" ? v.slice(0, 300) : null);
   const httpUrl = v => { try { const u = new URL(v); return /^https?:$/.test(u.protocol) ? u.href : null; } catch { return null; } };
   return list.slice(0, MAX_EMPLOYERS).filter(e => e && str(e.name)?.trim()).map(e => ({
-    name: str(e.name).trim(), careersUrl: httpUrl(e.careersUrl), domain: str(e.domain),
+    name: str(e.name).trim(), careersUrl: httpUrl(e.careersUrl), feed: httpUrl(e.feed), domain: str(e.domain),
     ats: str(e.ats), atsSlug: str(e.atsSlug), note: str(e.note), v: Number.isInteger(e.v) ? e.v : null
   })).map(e => Object.fromEntries(Object.entries(e).filter(([, v]) => v)));
 }

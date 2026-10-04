@@ -108,7 +108,8 @@ model only for the hard careers-page cases.
 | **The Muse** (live now) | Public jobs API, filtered to 15 Oklahoma cities + "Flexible / Remote" | High |
 | **Remotive** (live now) | Public remote-jobs API, kept only when US-eligible; must credit and link back | High |
 | **USAJOBS** (ready; needs key) | Official federal jobs API: everything located in Oklahoma plus remote HR (series 0201). Includes salary ranges. Turns on when `USAJOBS_API_KEY` and `USAJOBS_EMAIL` are set | High |
-| Indeed / ZipRecruiter | Partner APIs (connectors are already available in this workspace) | Medium. Check terms of use |
+| **Watched companies' own sites** (live now) | Free public feeds: Workday, Greenhouse, Lever, Ashby, via `/api/company-jobs`. Oklahoma and remote roles are merged into the main list | High |
+| LinkedIn / Indeed / ZipRecruiter | No public API (Indeed's is closed to new sites; ZipRecruiter is partner-only; LinkedIn forbids automated pulling). The page offers one-click "Also search on…" links that carry the user's search over | Link-out only |
 | Any other careers page | Fetch HTML → Claude extracts | Lower; most expensive |
 
 Each connector returns the same **standard job record**, so adding a new source never
