@@ -13,10 +13,12 @@ test("sanitizeHtml keeps simple formatting and strips everything dangerous", () 
 });
 
 test("classifyIndustry maps categories to industries", () => {
-  assert.strictEqual(classifyIndustry("Software Engineering"), "Technology");
+  assert.strictEqual(classifyIndustry("Software Engineering", "Platform Lead"), "Technology");
   assert.strictEqual(classifyIndustry("Nursing", "Registered Nurse"), "Healthcare");
-  assert.strictEqual(classifyIndustry("Accounting and Finance"), "Finance & Banking");
-  assert.strictEqual(classifyIndustry("Something odd"), "Other");
+  assert.strictEqual(classifyIndustry("Human Resources and Recruitment", "Site Commissioning Manager", "GE Vernova"), "Other");
+  assert.strictEqual(classifyIndustry("Human Resources and Recruitment", "Warehouse Operator"), "Manufacturing & Logistics");
+  assert.strictEqual(classifyIndustry("Accounting and Finance", "Senior Associate"), "Finance & Banking");
+  assert.strictEqual(classifyIndustry("Something odd", ""), "Other");
 });
 
 test("fromMuse keeps Oklahoma and remote jobs, drops others", () => {

@@ -237,8 +237,8 @@
 
   let visible = [];
   // Score a job against the search. Each word counts on its own, in any order; title hits rank highest.
-  // Related-word groups only match the job's title, company, industry and category, because
-  // descriptions often mention HR or benefits in passing.
+  // Related-word groups only match the job's title, company, location and industry, because
+  // descriptions often mention HR or benefits in passing and feed categories are unreliable.
   function score(j) {
     let hits = 0, points = 0;
     for (const t of terms) {
@@ -329,7 +329,7 @@
   [sel, where, only].forEach(el => el.addEventListener("input", render));
 
   function load(jobs) {
-    JOBS = jobs.map(j => ({ ...j, _text: textOf(j.description), _fields: [j.company, j.location, j.industry, j.category].join(" | ") }));
+    JOBS = jobs.map(j => ({ ...j, _text: textOf(j.description), _fields: [j.company, j.location, j.industry].join(" | ") }));
     render();
   }
 

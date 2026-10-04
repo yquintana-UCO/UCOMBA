@@ -27,7 +27,7 @@ const INDUSTRY_RULES = [
   ["Nonprofit", /non-?profit|foundation|charity|ministry/i],
   ["Consulting", /consult|advisory/i],
   ["Media & Entertainment", /media|marketing|content|writ(er|ing)|journal|entertain|advertis|communications|copy|video|creative/i],
-  ["Technology", /software|engineer|developer|data|\bit\b|devops|sysadmin|\bqa\b|product|computer|cyber|cloud|design|ux|ui|tech|programm/i],
+  ["Technology", /software|engineer|developer|data|\bit\b|devops|sysadmin|\bqa\b|product|computer|cyber|cloud|design|\bux\b|\bui\b|tech|programm/i],
   ["Manufacturing & Logistics", /manufactur|warehouse|plant|production|assembly|logistic|supply chain|transport|mechanic|driver|machin/i],
   ["Retail & Hospitality", /retail|store|customer service|customer support|hospitality|food|restaurant|consumer|cashier/i],
   ["Business & Professional Services", /sales|business|project manag|operations|legal|admin|office|account manag|management/i]
@@ -35,9 +35,14 @@ const INDUSTRY_RULES = [
 
 const INDUSTRIES = INDUSTRY_RULES.map(([name]) => name).sort().concat("Other");
 
-function classifyIndustry(...texts) {
-  const hay = texts.filter(Boolean).join(" ");
-  const hit = INDUSTRY_RULES.find(([, re]) => re.test(hay));
+// The job title decides first. The feed's category and the company name are only a fallback, and
+// never on their own make a job "Human Resources": The Muse files many unrelated roles under its
+// "Human Resources and Recruitment" category.
+function classifyIndustry(category, title, company) {
+  const byTitle = INDUSTRY_RULES.find(([, re]) => re.test(title || ""));
+  if (byTitle) return byTitle[0];
+  const hay = [category, company].filter(Boolean).join(" ");
+  const hit = INDUSTRY_RULES.find(([name, re]) => name !== "Human Resources" && re.test(hay));
   return hit ? hit[0] : "Other";
 }
 
