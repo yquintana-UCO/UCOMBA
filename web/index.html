@@ -142,12 +142,12 @@
   </div>
 </dialog>
 
-<footer>Jobs from <a href="https://www.themuse.com" target="_blank" rel="noopener">The Muse</a> and <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a>. Refreshed every 6 hours.</footer>
+<footer>Jobs from <a href="https://www.themuse.com" target="_blank" rel="noopener">The Muse</a> and <a href="https://remotive.com" target="_blank" rel="noopener">Remotive</a>. Refreshed every 12 hours.</footer>
 
 <script>
   const FALLBACK_INDUSTRIES = [
     "Aerospace & Defense", "Business & Professional Services", "Consulting", "Education", "Energy",
-    "Finance & Banking", "Government & Public Sector", "Healthcare", "Manufacturing & Logistics",
+    "Finance & Banking", "Government & Public Sector", "Healthcare", "Human Resources", "Manufacturing & Logistics",
     "Media & Entertainment", "Nonprofit", "Retail & Hospitality", "Technology", "Other"
   ];
 
@@ -181,10 +181,40 @@
   const isWatched = co => watched.some(w => w.toLowerCase() === co.toLowerCase());
 
   const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const hl = (text, term) => {
+  // Searching any word in a group also finds the others (e.g. "HR" finds recruiter and talent roles).
+  const SYNONYMS = [
+    ["human resources", "hr", "hris", "recruiter", "recruiting", "recruitment", "talent", "people operations",
+     "people ops", "people partner", "benefits", "compensation", "payroll", "employee relations", "onboarding", "workforce"],
+    ["finance", "financial", "accounting", "accountant", "controller", "treasury", "bookkeeper", "fp&a"],
+    ["software", "developer", "programmer", "full stack", "frontend", "backend", "software engineer"],
+    ["nurse", "nursing", "rn", "lpn", "registered nurse"],
+    ["marketing", "brand", "seo", "social media", "content", "communications"],
+    ["sales", "account executive", "business development", "account manager"]
+  ];
+  const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Short words (hr, rn) must match whole words so "hr" doesn't hit "three".
+  const wordRe = w => new RegExp((/^\w/.test(w) ? "\\b" : "") + reEsc(w) + (w.length <= 3 && /\w$/.test(w) ? "\\b" : ""), "i");
+
+  // Turn the search text into terms; each term is satisfied by any of its related words.
+  function parseSearch(text) {
+    let rest = " " + text.toLowerCase().replace(/\s+/g, " ") + " ";
+    const phrases = SYNONYMS.flat().filter(w => w.includes(" ")).sort((a, b) => b.length - a.length);
+    const words = [];
+    for (const p of phrases) if (rest.includes(" " + p + " ")) { words.push(p); rest = rest.replace(" " + p + " ", " "); }
+    words.push(...rest.trim().split(" ").filter(Boolean));
+    return words.map(w => {
+      const group = SYNONYMS.find(g => g.some(m => m === w || (w.length >= 4 && m.startsWith(w))));
+      const alts = group ? [...new Set([w, ...group])] : [w];
+      return { word: w, related: !!group, alts, res: alts.map(wordRe) };
+    });
+  }
+  let terms = [];
+
+  const hl = text => {
     const safe = esc(text);
-    if (!term) return safe;
-    const re = new RegExp("(" + esc(term).replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig");
+    if (!terms.length) return safe;
+    const alts = terms.flatMap(t => t.alts).sort((a, b) => b.length - a.length);
+    const re = new RegExp("\\b(" + alts.map(a => reEsc(esc(a))).join("|") + ")", "ig");
     return safe.replace(re, "<mark>$1</mark>");
   };
   const ago = iso => {
@@ -206,24 +236,44 @@
   }
 
   let visible = [];
+  // Score a job against the search. Each word counts on its own, in any order; title hits rank highest.
+  // Related-word groups only match the job's title, company, industry and category, because
+  // descriptions often mention HR or benefits in passing.
+  function score(j) {
+    let hits = 0, points = 0;
+    for (const t of terms) {
+      const p = t.res.some(r => r.test(j.title)) ? 3
+        : t.res.some(r => r.test(j._fields)) ? 2
+        : !t.related && t.res.some(r => r.test(j._text)) ? 1 : 0;
+      if (p) { hits++; points += p; }
+    }
+    return { all: hits === terms.length, rank: hits * 10 + points, hits };
+  }
+
   function render() {
-    const t = term.toLowerCase();
+    terms = term ? parseSearch(term) : [];
     visible = JOBS.filter(j =>
       (!sel.value || j.industry === sel.value) &&
       (!where.value || (where.value === "ok" ? j.oklahoma : j.remote)) &&
-      (!only.checked || isWatched(j.company)) &&
-      (!t || [j.title, j.company, j.location, j.industry, j.category].some(f => (f || "").toLowerCase().includes(t)) || j._text.includes(t))
-    );
+      (!only.checked || isWatched(j.company))
+    ).map(j => [j, terms.length ? score(j) : { all: true, rank: 1, hits: 1 }])
+      // Jobs matching every word come first; jobs matching some of the words follow as close matches.
+      .filter(([, s]) => s.hits > 0).sort((a, b) => b[1].rank - a[1].rank);
+    const full = visible.filter(([, s]) => s.all).length, close = visible.length - full;
+    visible = visible.map(([j]) => j);
 
+    const extra = terms.filter(t => t.related).flatMap(t => t.alts.filter(a => a !== t.word)).slice(0, 4);
     $("count").textContent = `${visible.length} open role${visible.length === 1 ? "" : "s"}` +
-      (sel.value ? ` in ${sel.value}` : "") + (term ? ` matching "${term}"` : "");
+      (sel.value ? ` in ${sel.value}` : "") + (term ? ` for "${term}"` : "") +
+      (term && close ? ` (${full} best match${full === 1 ? "" : "es"}, ${close} close)` : "") +
+      (extra.length ? ` · also searching ${extra.join(", ")}…` : "");
 
     $("results").innerHTML = visible.length ? visible.map((j, i) => `
       <button class="job" type="button" data-i="${i}">
         <span class="tags"><span class="tag">${esc(j.industry)}</span>${j.remote ? '<span class="tag blue">Remote</span>' : ""}${j.oklahoma ? '<span class="tag blue">Oklahoma</span>' : ""}</span>
-        <h3>${hl(j.title, term)}</h3>
-        <span class="co">${hl(j.company, term)}</span>
-        <span class="meta">${hl(j.location, term)}${j.posted ? " · " + ago(j.posted) : ""}</span>
+        <h3>${hl(j.title)}</h3>
+        <span class="co">${hl(j.company)}</span>
+        <span class="meta">${hl(j.location)}${j.posted ? " · " + ago(j.posted) : ""}</span>
         <span class="more">View details →</span>
       </button>`).join("")
       : `<div class="empty">No jobs found. Try a different search, industry, or location.</div>`;
@@ -279,7 +329,7 @@
   [sel, where, only].forEach(el => el.addEventListener("input", render));
 
   function load(jobs) {
-    JOBS = jobs.map(j => ({ ...j, _text: textOf(j.description).toLowerCase() }));
+    JOBS = jobs.map(j => ({ ...j, _text: textOf(j.description), _fields: [j.company, j.location, j.industry, j.category].join(" | ") }));
     render();
   }
 

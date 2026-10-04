@@ -11,13 +11,17 @@ const OK_CITIES = [
   "Owasso, OK", "Shawnee, OK", "Bartlesville, OK", "Muskogee, OK", "Ardmore, OK"
 ];
 const MUSE_REMOTE = "Flexible / Remote";
+// Fetched on its own so HR roles aren't crowded out by larger fields.
+const MUSE_HR_CATEGORY = "Human Resources and Recruitment";
+const REMOTIVE_HR_CATEGORY = "human-resources";
 
 // First match wins, so more specific industries come first.
 const INDUSTRY_RULES = [
   ["Aerospace & Defense", /aerospace|defen[cs]e|aviation|aircraft|air force|military|boeing|tinker|lockheed|northrop|raytheon/i],
   ["Healthcare", /health|nurs|medical|clinic|physician|pharm|therap|hospital|dental|patient|caregiver|integris|ssm/i],
   ["Energy", /energy|oil\b|natural gas|petroleum|utilit|electric|pipeline|power plant|solar|wind|devon|og&e|ong?ok|chesapeake|williams/i],
-  ["Finance & Banking", /financ|accounting|accountant|bank|credit|audit|\btax|loan|insurance|actuar|payroll|bookkeep/i],
+  ["Finance & Banking", /financ|accounting|accountant|bank|credit|audit|\btax|loan|insurance|actuar|bookkeep/i],
+  ["Human Resources", /human resources|\bhr\b|\bhris\b|recruit|talent|people (operations|ops|partner|team)|benefits|compensation|payroll|employee relations|onboarding specialist|workforce/i],
   ["Education", /educat|teach|school|universit|tutor|academ|instruct|curriculum/i],
   ["Government & Public Sector", /government|public sector|federal|state of|county|city of|municipal|usajobs/i],
   ["Nonprofit", /non-?profit|foundation|charity|ministry/i],
@@ -26,7 +30,7 @@ const INDUSTRY_RULES = [
   ["Technology", /software|engineer|developer|data|\bit\b|devops|sysadmin|\bqa\b|product|computer|cyber|cloud|design|ux|ui|tech|programm/i],
   ["Manufacturing & Logistics", /manufactur|warehouse|plant|production|assembly|logistic|supply chain|transport|mechanic|driver|machin/i],
   ["Retail & Hospitality", /retail|store|customer service|customer support|hospitality|food|restaurant|consumer|cashier/i],
-  ["Business & Professional Services", /sales|business|human resources|\bhr\b|recruit|project manag|operations|legal|admin|office|account manag|management/i]
+  ["Business & Professional Services", /sales|business|project manag|operations|legal|admin|office|account manag|management/i]
 ];
 
 const INDUSTRIES = INDUSTRY_RULES.map(([name]) => name).sort().concat("Other");
@@ -54,6 +58,15 @@ function sanitizeHtml(html) {
   return out + esc(cleaned.slice(last));
 }
 
+// Keep the payload well under Vercel's 4.5 MB response limit; the full text is on the employer's page.
+const MAX_DESCRIPTION = 8000;
+function trimDescription(html) {
+  if (html.length <= MAX_DESCRIPTION) return html;
+  const cut = Math.max(html.lastIndexOf("</p>", MAX_DESCRIPTION), html.lastIndexOf("</li>", MAX_DESCRIPTION));
+  const head = cut > 0 ? html.slice(0, html.indexOf(">", cut) + 1) : html.slice(0, MAX_DESCRIPTION);
+  return head + "<p><em>Description shortened. See the full posting on the employer's site.</em></p>";
+}
+
 const isOklahoma = loc => /,\s*OK\b|oklahoma/i.test(loc || "");
 // Remote roles that a candidate living in Oklahoma can take.
 const US_ELIGIBLE = /^\s*$|usa|united states|\bus\b|u\.s\.|north america|americas|worldwide|anywhere|global/i;
@@ -78,7 +91,7 @@ function fromMuse(job) {
     salary: "",
     posted: job.publication_date || null,
     url: job.refs?.landing_page || "",
-    description: sanitizeHtml(job.contents),
+    description: trimDescription(sanitizeHtml(job.contents)),
     source: "The Muse",
     sourceUrl: "https://www.themuse.com"
   };
@@ -101,7 +114,7 @@ function fromRemotive(job) {
     salary: job.salary || "",
     posted: job.publication_date || null,
     url: job.url || "",
-    description: sanitizeHtml(job.description),
+    description: trimDescription(sanitizeHtml(job.description)),
     source: "Remotive",
     sourceUrl: "https://remotive.com"
   };
@@ -113,36 +126,44 @@ async function getJson(fetchImpl, url) {
   return res.json();
 }
 
-function museUrl(locations, page) {
+function museUrl(locations, page, category) {
   const qs = new URLSearchParams({ page: String(page) });
   locations.forEach(l => qs.append("location", l));
+  if (category) qs.append("category", category);
   return `${MUSE_URL}?${qs}`;
 }
 
 // Fetch page 0, then every remaining page the feed reports (up to maxPages).
-async function fetchMusePages(fetchImpl, locations, maxPages) {
-  const first = await getJson(fetchImpl, museUrl(locations, 0));
+async function fetchMusePages(fetchImpl, locations, maxPages, category) {
+  const first = await getJson(fetchImpl, museUrl(locations, 0, category));
   const total = Math.min(first.page_count || 1, maxPages);
   const rest = await Promise.allSettled(
-    Array.from({ length: total - 1 }, (_, i) => getJson(fetchImpl, museUrl(locations, i + 1)))
+    Array.from({ length: total - 1 }, (_, i) => getJson(fetchImpl, museUrl(locations, i + 1, category)))
   );
   return [first, ...rest.filter(p => p.status === "fulfilled").map(p => p.value)]
     .flatMap(page => page.results || []);
 }
 
-async function fetchMuse(fetchImpl, { okPages = 15, remotePages = 3 } = {}) {
-  const [ok, remote] = await Promise.allSettled([
+async function fetchMuse(fetchImpl, { okPages = 15, remotePages = 3, hrPages = 5 } = {}) {
+  const results = await Promise.allSettled([
     fetchMusePages(fetchImpl, OK_CITIES, okPages),
-    fetchMusePages(fetchImpl, [MUSE_REMOTE], remotePages)
+    fetchMusePages(fetchImpl, [MUSE_REMOTE], remotePages),
+    fetchMusePages(fetchImpl, OK_CITIES, hrPages, MUSE_HR_CATEGORY),
+    fetchMusePages(fetchImpl, [MUSE_REMOTE], hrPages, MUSE_HR_CATEGORY)
   ]);
-  if (ok.status === "rejected" && remote.status === "rejected") throw ok.reason;
-  return [ok, remote].flatMap(r => (r.status === "fulfilled" ? r.value : []))
+  if (results.every(r => r.status === "rejected")) throw results[0].reason;
+  return results.flatMap(r => (r.status === "fulfilled" ? r.value : []))
     .map(fromMuse).filter(Boolean);
 }
 
 async function fetchRemotive(fetchImpl, { limit = 150 } = {}) {
-  const data = await getJson(fetchImpl, `${REMOTIVE_URL}?limit=${limit}`);
-  return (data.jobs || []).map(fromRemotive).filter(Boolean);
+  const results = await Promise.allSettled([
+    getJson(fetchImpl, `${REMOTIVE_URL}?limit=${limit}`),
+    getJson(fetchImpl, `${REMOTIVE_URL}?category=${REMOTIVE_HR_CATEGORY}`)
+  ]);
+  if (results.every(r => r.status === "rejected")) throw results[0].reason;
+  return results.flatMap(r => (r.status === "fulfilled" ? r.value.jobs || [] : []))
+    .map(fromRemotive).filter(Boolean);
 }
 
 async function collectJobs(fetchImpl = fetch) {
@@ -166,4 +187,4 @@ async function collectJobs(fetchImpl = fetch) {
   return { jobs, sources, industries: INDUSTRIES, updatedAt: new Date().toISOString() };
 }
 
-module.exports = { collectJobs, classifyIndustry, sanitizeHtml, fromMuse, fromRemotive, INDUSTRIES, OK_CITIES };
+module.exports = { collectJobs, classifyIndustry, sanitizeHtml, trimDescription, fromMuse, fromRemotive, INDUSTRIES, OK_CITIES };

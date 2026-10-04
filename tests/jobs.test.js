@@ -71,7 +71,38 @@ test("fetchMuse follows page_count but stops at the page cap", async () => {
     return { ok: true, json: async () => ({ page_count: remote ? 1 : 40, results: [{ id: `${remote}-${page}`, name: `Job ${remote}-${page}`, company: { name: "Co" }, locations: [{ name: remote ? "Flexible / Remote" : "Tulsa, OK" }], categories: [], levels: [], contents: "", refs: {} }] }) };
   };
   const data = await collectJobs(fakeFetch);
-  assert.strictEqual(calls.filter(u => u.includes("themuse") && !u.includes("Flexible")).length, 15);
-  assert.strictEqual(calls.filter(u => u.includes("Flexible")).length, 1);
-  assert.strictEqual(data.jobs.filter(j => j.oklahoma).length, 15);
+  const general = calls.filter(u => u.includes("themuse") && !u.includes("category="));
+  assert.strictEqual(general.filter(u => !u.includes("Flexible")).length, 15);
+  assert.strictEqual(general.filter(u => u.includes("Flexible")).length, 1);
+  assert.ok(data.jobs.filter(j => j.oklahoma).length >= 15);
+});
+
+test("HR roles get their own industry", () => {
+  assert.strictEqual(classifyIndustry("Human Resources and Recruitment", "HR Generalist"), "Human Resources");
+  assert.strictEqual(classifyIndustry("", "Technical Recruiter", "Acme Software"), "Human Resources");
+  assert.strictEqual(classifyIndustry("", "People Operations Partner"), "Human Resources");
+  assert.strictEqual(classifyIndustry("", "Three-Shift Supervisor"), "Other"); // "hr" must be a whole word
+});
+
+test("collectJobs also requests HR-specific feeds", async () => {
+  const calls = [];
+  const fakeFetch = async url => {
+    calls.push(url);
+    if (url.includes("remotive")) return { ok: true, json: async () => ({ jobs: url.includes("human-resources") ? [{ id: 7, title: "HR Business Partner", company_name: "Remote Co", category: "Human Resources", candidate_required_location: "USA" }] : [] }) };
+    const hr = url.includes("category=Human+Resources");
+    return { ok: true, json: async () => ({ page_count: 1, results: hr ? [{ id: 9, name: "Recruiter", company: { name: "Tulsa Co" }, locations: [{ name: "Tulsa, OK" }], categories: [{ name: "Human Resources and Recruitment" }], levels: [], contents: "", refs: {} }] : [] }) };
+  };
+  const data = await collectJobs(fakeFetch);
+  assert.strictEqual(calls.filter(u => u.includes("category=Human+Resources")).length, 2);
+  assert.ok(calls.some(u => u.includes("remotive") && u.includes("category=human-resources")));
+  assert.deepStrictEqual(data.jobs.map(j => j.industry).sort(), ["Human Resources", "Human Resources"]);
+});
+
+test("trimDescription keeps long descriptions under the cap at a tag boundary", () => {
+  const { trimDescription } = require("../api/_lib/jobs");
+  const long = "<p>" + "word ".repeat(1000) + "</p>".repeat(1) + ("<p>" + "x".repeat(500) + "</p>").repeat(20);
+  const out = trimDescription(long);
+  assert.ok(out.length < 9000);
+  assert.match(out, /Description shortened/);
+  assert.strictEqual(trimDescription("<p>short</p>"), "<p>short</p>");
 });

@@ -51,11 +51,14 @@ flowchart LR
   gold is blue, never white (contrast).
 - **Search bar:** free text across title, company, location and description.
   Results filter as the user types.
-- **Industry dropdown:** Technology, Finance & Banking, Healthcare, Energy,
+- **Industry dropdown:** Technology, Finance & Banking, Healthcare, Human Resources, Energy,
   Education, Government & Public Sector, Manufacturing, Retail & Consumer,
   Consulting, Nonprofit, Aerospace & Defense, Media & Entertainment.
 - Secondary filters: location / remote, posted-within, "only my watched companies".
 - **Watchlist panel:** add or remove companies.
+- **Smart search:** each word matches on its own, in any order, with related terms (e.g. "HR" also
+  finds recruiter, talent, benefits and people-operations roles). Title matches rank first; jobs
+  matching only some words appear below as close matches.
 - **Location filter:** Oklahoma + Remote (default), Oklahoma only, Remote only.
 - **Job details:** clicking a job opens a panel with location, work style, industry, type,
   level, salary (when posted), full description, "Apply on employer site" and "Watch company".
